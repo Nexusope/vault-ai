@@ -1,6 +1,6 @@
 import type { Idea } from "./data";
 
-export type RelationshipKind = "Similar Topic" | "Similar Audience" | "Similar Hook" | "Similar Editing Style" | "Similar Storytelling" | "Shared Creator" | "Trending Together" | "Complements" | "High Semantic Similarity";
+export type RelationshipKind = "Similar Topic" | "Similar Audience" | "Similar Hook" | "Similar Editing Style" | "Similar Storytelling" | "Similar Audio" | "Similar Keywords" | "Shared Creator" | "Trending Together" | "Inspired By" | "References" | "Contradicts" | "Complements" | "Frequently Viewed Together" | "High Semantic Similarity";
 
 export type GalaxyNode = Idea & {
   platform: string;
@@ -18,6 +18,7 @@ export type GalaxyNode = Idea & {
   favorite: boolean;
   collections: string[];
   savedOrder: number;
+  embeddingVector: number[];
   position: [number, number, number];
 };
 
@@ -96,6 +97,7 @@ export function enrichIdeas(ideas: Idea[]): GalaxyNode[] {
       favorite: idea.trend >= 90,
       collections: idea.tags.slice(0, 2).map((tag) => tag.toUpperCase()),
       savedOrder: index,
+      embeddingVector: Array.from({ length: 16 }, (_, dimension) => ((((seed ^ Math.imul(dimension + 1, 2654435761)) >>> 0) % 2001) / 1000) - 1),
       position,
     };
   });
@@ -108,10 +110,12 @@ function relationship(a: GalaxyNode, b: GalaxyNode): { strength: number; type: R
   const sameAudience = a.audience === b.audience;
   const sameHook = a.storytellingStyle === b.storytellingStyle;
   const sameEdit = a.editingStyle === b.editingStyle;
+  const similarAudio = (a.topic === "Audio" || a.keywords.includes("audio")) && (b.topic === "Audio" || b.keywords.includes("audio"));
   const trendAffinity = 1 - Math.min(1, Math.abs(a.trend - b.trend) / 40);
   let strength = sharedKeywords * 0.16 + (sameTopic ? 0.32 : 0) + (sameAudience ? 0.13 : 0) + (sameHook ? 0.12 : 0) + (sameEdit ? 0.09 : 0) + trendAffinity * 0.09;
   if (sameCreator) strength = Math.max(strength, 0.94);
-  const type: RelationshipKind = sameCreator ? "Shared Creator" : sharedKeywords > 1 ? "High Semantic Similarity" : sameTopic ? "Similar Topic" : sameAudience ? "Similar Audience" : sameHook ? "Similar Hook" : sameEdit ? "Similar Editing Style" : trendAffinity > 0.85 ? "Trending Together" : "Complements";
+  const adjacent = Math.abs(a.savedOrder - b.savedOrder) === 1;
+  const type: RelationshipKind = sameCreator ? "Shared Creator" : sharedKeywords > 1 ? "High Semantic Similarity" : similarAudio ? "Similar Audio" : sameTopic && a.emotionalTone === "Contrarian" && b.emotionalTone !== "Contrarian" ? "Contradicts" : sameTopic ? "Similar Topic" : sameAudience ? "Similar Audience" : sameHook ? "Similar Hook" : sameEdit ? "Similar Editing Style" : adjacent ? "Frequently Viewed Together" : trendAffinity > 0.85 ? "Trending Together" : a.savedOrder > b.savedOrder ? "Inspired By" : "Complements";
   return { strength: Math.min(0.99, strength), type };
 }
 
@@ -139,6 +143,14 @@ export function buildGalaxyGraph(ideas: Idea[]): GalaxyGraph {
         if (!seen.has(key)) { seen.add(key); edges.push({ source: index, target: edge.candidate, strength: edge.strength, type: edge.type }); }
       });
   });
+  const attraction = nodes.map(() => [0, 0, 0] as [number, number, number]);
+  edges.filter((edge) => edge.strength >= 0.62).forEach((edge) => {
+    const source = nodes[edge.source]; const target = nodes[edge.target]; const pull = (edge.strength - 0.58) * 0.055;
+    const delta: [number, number, number] = [(target.position[0] - source.position[0]) * pull, (target.position[1] - source.position[1]) * pull, (target.position[2] - source.position[2]) * pull];
+    attraction[edge.source] = [attraction[edge.source][0] + delta[0], attraction[edge.source][1] + delta[1], attraction[edge.source][2] + delta[2]];
+    attraction[edge.target] = [attraction[edge.target][0] - delta[0], attraction[edge.target][1] - delta[1], attraction[edge.target][2] - delta[2]];
+  });
+  nodes.forEach((node, index) => { node.position = [node.position[0] + attraction[index][0], node.position[1] + attraction[index][1], node.position[2] + attraction[index][2]]; });
   const clusters = [...new Set(nodes.map((node) => node.topic))].map((name, index): GalaxyCluster => {
     const members = nodes.filter((node) => node.topic === name);
     const center = members.reduce<[number, number, number]>((sum, node) => [sum[0] + node.position[0], sum[1] + node.position[1], sum[2] + node.position[2]], [0, 0, 0]).map((value) => value / Math.max(1, members.length)) as [number, number, number];
