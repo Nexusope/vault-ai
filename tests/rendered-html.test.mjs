@@ -14,7 +14,7 @@ test("finished Vault AI source replaces every starter surface", async () => {
   assert.match(component, /OPPORTUNITY RADAR/);
   assert.match(component, /href=\{`\/\$\{name\}`\}/);
   assert.match(layout, /VAULT\/\/AI/);
-  assert.match(layout, /og\.png/);
+  assert.match(layout, /og-galaxy\.png/);
   assert.match(css, /prefers-reduced-motion/);
   assert.doesNotMatch(page + component + layout, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
@@ -37,7 +37,7 @@ test("ships complete blueprint, agents, skills, prompts, and project asset", asy
   const [docs, agents, skills, prompts, image] = await Promise.all([
     readdir(new URL("../docs/", import.meta.url)), readdir(new URL("../agents/", import.meta.url)),
     readdir(new URL("../skills/", import.meta.url)), readdir(new URL("../prompts/", import.meta.url)),
-    stat(new URL("../public/og.png", import.meta.url)),
+    stat(new URL("../public/og-galaxy.png", import.meta.url)),
   ]);
   assert.equal(docs.filter((file) => file.endsWith(".md")).length, 35);
   assert.equal(agents.filter((file) => file.endsWith(".md")).length, 18);
