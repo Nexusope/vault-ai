@@ -64,6 +64,6 @@ test("Idea Galaxy ships the complete scalable exploration architecture", async (
   for (const mode of ["GALAXY", "NETWORK", "TIMELINE", "KANBAN", "LIBRARY", "HEATMAP", "OPPORTUNITY", "FOCUS"]) assert.match(galaxy, new RegExp(`\\"${mode}\\"`));
   assert.match(galaxy, /instancedMesh/); assert.match(galaxy, /OrbitControls/); assert.match(galaxy, /Semantic galaxy search/);
   assert.match(galaxy, /galaxy-layout\.worker/); assert.match(galaxy, /FUSION DOCK/); assert.match(galaxy, /OPEN ORIGINAL SOURCE/);
-  assert.match(graph, /RelationshipKind/); assert.match(graph, /High Semantic Similarity/); assert.match(graph, /slice\(0, 7\)/); assert.match(graph, /galaxyContextForAI/);
+  assert.match(graph, /RelationshipKind/); assert.match(graph, /High Semantic Similarity/); assert.match(graph, /slice\(0, 12\)/); assert.match(graph, /galaxyContextForAI/);
   assert.match(worker, /buildGalaxyGraph/); assert.match(css, /prefers-reduced-motion/);
 });

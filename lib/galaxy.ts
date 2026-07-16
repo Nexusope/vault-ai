@@ -133,7 +133,7 @@ export function buildGalaxyGraph(ideas: Idea[]): GalaxyGraph {
       .map((candidate) => ({ candidate, ...relationship(node, nodes[candidate]) }))
       .filter((edge) => edge.strength >= 0.25)
       .sort((a, b) => b.strength - a.strength)
-      .slice(0, 7)
+      .slice(0, 12)
       .forEach((edge) => {
         const key = index < edge.candidate ? `${index}:${edge.candidate}` : `${edge.candidate}:${index}`;
         if (!seen.has(key)) { seen.add(key); edges.push({ source: index, target: edge.candidate, strength: edge.strength, type: edge.type }); }

@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Color, Object3D, type Group, type InstancedMesh } from "three";
 import {
   Atom, Boxes, BrainCircuit, CalendarRange, Check, ChevronRight, CircleDot,
-  Clock3, ExternalLink, Flame, Focus, Grid2X2, KanbanSquare,
+  Clock3, ExternalLink, Flame, Focus, Grid2X2, Heart, KanbanSquare,
   ListFilter, Network, Orbit, Plus, Radar, Search, Sparkles as SparklesIcon,
   Target, X,
 } from "lucide-react";
@@ -149,7 +149,7 @@ function KanbanView({ graph, activeIds, selectedId, onSelect, onDrag }: { graph:
 }
 
 function LibraryGalaxyView({ nodes, activeIds, selectedId, onSelect, onDrag }: { nodes: GalaxyNode[]; activeIds: Set<string>; selectedId?: string; onSelect: (id: string) => void; onDrag: (event: React.DragEvent, id: string) => void }) {
-  return <div className={styles.libraryGrid}>{nodes.filter((node) => activeIds.has(node.id)).map((node) => <button draggable onDragStart={(event) => onDrag(event, node.id)} key={node.id} onClick={() => onSelect(node.id)} className={node.id === selectedId ? styles.activeCard : ""}><div className={styles.thumb} style={{ "--node": node.accent } as React.CSSProperties}><PlatformMark platform={node.platform} /><span>{node.topic.slice(0, 3).toUpperCase()}</span><CircleDot /></div><small>{node.creator} · {node.saved} ago</small><b>{node.title}</b><p>{node.insight}</p><footer><span>{node.emotionalTone}</span><strong>↑{node.trend}</strong></footer></button>)}</div>;
+  return <div className={styles.libraryGrid}>{nodes.filter((node) => activeIds.has(node.id)).map((node) => <button draggable onDragStart={(event) => onDrag(event, node.id)} key={node.id} onClick={() => onSelect(node.id)} className={node.id === selectedId ? styles.activeCard : ""}><div className={styles.thumb} style={{ "--node": node.accent } as React.CSSProperties}><PlatformMark platform={node.platform} />{node.favorite&&<Heart className={styles.favorite} fill="currentColor" aria-label="Favorite idea"/>}<span>{node.topic.slice(0, 3).toUpperCase()}</span><CircleDot /></div><small>{node.creator} · {node.saved} ago</small><b>{node.title}</b><p>{node.insight}</p><footer><span>{node.collections.length?node.collections.join(' · '):node.emotionalTone}</span><strong>↑{node.trend}</strong></footer></button>)}</div>;
 }
 
 function HeatmapView({ graph, onSelectCluster }: { graph: GalaxyGraph; onSelectCluster: (cluster: string) => void }) {
@@ -185,7 +185,7 @@ function Inspector({ graph, node, selectedForFusion, onClose, onSelect, onToggle
     <div className={styles.inspectorBody}><small>{node.creator} · SAVED {node.saved.toUpperCase()} AGO</small><h2>{node.title}</h2><p>{node.insight}</p>
       <div className={styles.scoreStrip}><div><span>TREND</span><b>{node.trend}</b></div><div><span>VIRALITY</span><b>{node.virality}</b></div><div><span>CONFIDENCE</span><b>{node.confidence}%</b></div></div>
       <dl><dt>EMOTIONAL TONE</dt><dd>{node.emotionalTone}</dd><dt>HOOK ANALYSIS</dt><dd>{node.hookAnalysis}</dd><dt>AUDIENCE</dt><dd>{node.audience}</dd><dt>EDITING / STORY</dt><dd>{node.editingStyle} · {node.storytellingStyle}</dd></dl>
-      <div className={styles.keywordRow}>{node.keywords.slice(0, 6).map((keyword) => <span key={keyword}>#{keyword}</span>)}</div>
+      <div className={styles.keywordRow}>{node.favorite&&<span>♥ FAVORITE</span>}{node.collections.map((collection)=><span key={`collection-${collection}`}>COLLECTION / {collection}</span>)}{node.keywords.slice(0, 6).map((keyword) => <span key={keyword}>#{keyword}</span>)}</div>
       <section className={styles.related}><span>RELATED IDEAS / {relatedEdges.length}</span>{relatedEdges.map((edge) => { const related = graph.nodes[edge.source].id === node.id ? graph.nodes[edge.target] : graph.nodes[edge.source]; return <button key={`${edge.source}-${edge.target}`} onClick={() => onSelect(related.id)}><i style={{ background: related.accent }} /><div><b>{related.title}</b><small>{edge.type} · {Math.round(edge.strength * 100)}%</small></div><ChevronRight /></button>; })}</section>
       <button className={`${styles.fusionButton} ${selectedForFusion ? styles.selectedFusion : ""}`} onClick={onToggleFusion}>{selectedForFusion ? <Check /> : <Plus />}{selectedForFusion ? "ADDED TO FUSION" : "ADD TO FUSION"}</button>
       {node.sourceUrl && <a className={styles.sourceButton} href={node.sourceUrl} target="_blank" rel="noopener noreferrer">OPEN ORIGINAL SOURCE <ExternalLink /></a>}
@@ -237,7 +237,7 @@ export function IdeaGalaxyWorkspace({ ideas }: { ideas: Idea[] }) {
     <div className={styles.liveHud}><span><i /> LIVE GRAPH</span><b>{graph.nodes.length.toLocaleString()} NODES</b><small>{graph.edges.length.toLocaleString()} AI RELATIONSHIPS</small></div>
     <div className={styles.controlHud}><small>DRAG TO ORBIT · SCROLL TO ZOOM</small><small>CLICK A NODE TO INSPECT</small></div>
     {strongestCluster && <button className={styles.opportunityBeacon} onClick={() => { const node = graph.nodes.find((item) => item.topic === strongestCluster.name); if (node) select(node.id); setMode("OPPORTUNITY"); }}><SparklesIcon /><span>OPPORTUNITY DETECTED</span><b>{strongestCluster.name} is accelerating</b></button>}
-    {hovered && <div className={styles.hoverCard}><PlatformMark platform={hovered.platform} /><div><small>{hovered.creator} · {hovered.emotionalTone}</small><b>{hovered.title}</b><span>↑{hovered.trend} TREND · {graph.edges.filter((edge) => graph.nodes[edge.source].id === hovered.id || graph.nodes[edge.target].id === hovered.id).length} RELATED</span></div></div>}
+    {hovered && <div className={styles.hoverCard}><PlatformMark platform={hovered.platform} /><div><small>{hovered.creator} · SAVED {hovered.saved.toUpperCase()} AGO · {hovered.emotionalTone}</small><b>{hovered.title}</b><p>{hovered.insight}</p><em>{hovered.hookAnalysis}</em><span>↑{hovered.trend} TREND · {graph.edges.filter((edge) => graph.nodes[edge.source].id === hovered.id || graph.nodes[edge.target].id === hovered.id).length} RELATED</span></div></div>}
   </div> : mode === "NETWORK" ? <NetworkView graph={graph} activeIds={activeIds} selectedId={selectedId} onSelect={select} /> : mode === "TIMELINE" ? <TimelineView nodes={graph.nodes} activeIds={activeIds} selectedId={selectedId} onSelect={select} onDrag={dragIdea} /> : mode === "KANBAN" ? <KanbanView graph={graph} activeIds={activeIds} selectedId={selectedId} onSelect={select} onDrag={dragIdea} /> : mode === "LIBRARY" ? <LibraryGalaxyView nodes={graph.nodes} activeIds={activeIds} selectedId={selectedId} onSelect={select} onDrag={dragIdea} /> : mode === "HEATMAP" ? <HeatmapView graph={graph} onSelectCluster={selectCluster} /> : mode === "OPPORTUNITY" ? <OpportunityView graph={graph} onFocus={(id) => { select(id); setMode("FOCUS"); }} /> : <FocusView graph={graph} selected={selected} onSelect={select} />;
 
   return <section className={styles.workspace}>
