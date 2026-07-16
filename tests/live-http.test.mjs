@@ -17,9 +17,28 @@ test("live API rejects invalid input and persists a valid idea", async () => {
   assert.equal(invalidIdea.status, 400);
   const invalidAI = await fetch(base + "/api/ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: "" }) });
   assert.equal(invalidAI.status, 400);
+  const unknownField = await fetch(base + "/api/ideas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "Strict payload", unexpected: true }) });
+  assert.equal(unknownField.status, 400);
+  const disabledProviders = await fetch(base + "/api/ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: "Verify disabled routing", providers: [] }) });
+  assert.equal(disabledProviders.status, 503); assert.equal((await disabledProviders.json()).fallbackCount, 0);
   const title = `QA capture ${Date.now()}`;
   const created = await fetch(base + "/api/ideas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title, summary: "Automated persistence verification", tags: ["qa"] }) });
   assert.equal(created.status, 201); assert.equal((await created.json()).idea.title, title);
   const list = await fetch(base + "/api/ideas"); assert.equal(list.status, 200);
   assert.ok((await list.json()).ideas.some((idea) => idea.title === title));
+});
+
+test("server-rendered collection filters do not leak unrelated ideas", async () => {
+  const hook = await (await fetch(base + "/library?q=hook")).text();
+  assert.match(hook, /3-second tension hook/); assert.doesNotMatch(hook, /Quiet luxury sound map/);
+  const empty = await (await fetch(base + "/library?q=__empty_collection__")).text();
+  assert.match(empty, /NO MATCHING SIGNAL/); assert.doesNotMatch(empty, /Quiet luxury sound map/);
+});
+
+test("local Instagram bridge health is installed, bounded, and credential-safe", async () => {
+  const started = performance.now();
+  const response = await fetch("http://127.0.0.1:4317/health", { signal: AbortSignal.timeout(2_000) });
+  assert.equal(response.status, 200); assert.ok(performance.now() - started < 2_000);
+  const health = await response.json(); assert.equal(health.ok, true); assert.equal(typeof health.authenticated, "boolean");
+  assert.equal(Object.hasOwn(health, "password"), false); assert.equal(Object.hasOwn(health, "session"), false);
 });

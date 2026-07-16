@@ -1,11 +1,15 @@
 import { createServer } from "node:http";
 import { execFile } from "node:child_process";
+import { access, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
 const port = Number(process.env.INSTAGRAM_BRIDGE_PORT || 4317);
 let windowsCliEntry;
+let versionCache;
+let presenceCache;
 async function cliCommand(args) {
   if (process.platform !== "win32") return { executable: "instagram-cli", args };
   if (!windowsCliEntry) {
@@ -24,6 +28,37 @@ async function run(args, timeout = 30_000) {
     try { return JSON.parse(trimmed); } catch { return { ok: true, data: trimmed }; }
   } catch (error) { return { ok: false, error: error.stderr?.trim() || error.stdout?.trim() || error.message }; }
 }
+async function getCliVersion() {
+  if (versionCache) return versionCache;
+  const version = await run(["--version"], 5_000);
+  if (version.ok) versionCache = version;
+  return version;
+}
+async function getCliPresence() {
+  if (presenceCache) return presenceCache;
+  try {
+    const command = await cliCommand([]);
+    if (process.platform === "win32") await access(command.args[0]);
+    presenceCache = { ok: true };
+  } catch (error) {
+    presenceCache = { ok: false, error: error instanceof Error ? error.message : "instagram-cli was not found" };
+  }
+  return presenceCache;
+}
+async function getSessionState() {
+  try {
+    const configPath = process.env.INSTAGRAM_CLI_CONFIG || join(homedir(), ".instagram-cli", "config.ts.yaml");
+    const config = await readFile(configPath, "utf8");
+    const username = config.match(/^\s*currentUsername:\s*["']?([^"'#\r\n]+?)["']?\s*$/m)?.[1]?.trim();
+    if (!username || username === "null" || username === "undefined") return { authenticated: false, identity: null };
+    const configuredDir = config.match(/^\s*usersDir:\s*["']?([^"'#\r\n]+?)["']?\s*$/m)?.[1]?.trim();
+    const usersDir = configuredDir || join(homedir(), ".instagram-cli", "users");
+    await access(join(usersDir, username, "session.ts.json"));
+    return { authenticated: true, identity: `@${username}` };
+  } catch {
+    return { authenticated: false, identity: null };
+  }
+}
 const server = createServer(async (request, response) => {
   response.setHeader("access-control-allow-origin", "http://localhost:3000");
   response.setHeader("access-control-allow-methods", "GET, OPTIONS");
@@ -31,10 +66,8 @@ const server = createServer(async (request, response) => {
   if (request.method === "OPTIONS") return response.end();
   const url = new URL(request.url, `http://127.0.0.1:${port}`);
   if (url.pathname === "/health") {
-    const [version, identity] = await Promise.all([run(["--version"], 5_000), run(["auth", "whoami"], 5_000)]);
-    const identityText = typeof identity.data === "string" ? identity.data : "";
-    const authenticated = identity.ok && !/no active account/i.test(identityText);
-    return response.end(JSON.stringify({ ok: version.ok, cli: version.data || "installed", authenticated, identity: authenticated ? identity.data : null }));
+    const [presence, session] = await Promise.all([getCliPresence(), getSessionState()]);
+    return response.end(JSON.stringify({ ok: presence.ok, cli: versionCache?.data || (presence.ok ? "installed" : "missing"), ...session }));
   }
   if (url.pathname === "/inbox") {
     const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 20), 1), 50);
@@ -43,3 +76,4 @@ const server = createServer(async (request, response) => {
   response.statusCode = 404; response.end(JSON.stringify({ ok: false, error: "Not found" }));
 });
 server.listen(port, "127.0.0.1", () => console.log(`Vault Instagram bridge listening on http://127.0.0.1:${port}`));
+void getCliVersion();
