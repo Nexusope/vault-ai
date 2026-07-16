@@ -1,0 +1,3 @@
+# Backend Agent Prompt
+
+Read the system, database, API, security, event, and error docs plus `agents/backend-agent.md`. Turn the assigned behavior into a typed contract, thin transport handler, application service, domain invariant, repository/adapter calls, outbox event, safe error mapping, metrics, and tests. Pass tenant/actor explicitly, enforce authorization inside the service, validate external input, cap work, and preserve idempotency. Do not couple business logic to AI/source vendors. Prove success, invalid input, forbidden tenant, duplicate, dependency failure, retry, and rollback paths.

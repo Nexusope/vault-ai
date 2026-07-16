@@ -1,0 +1,3 @@
+# Frontend Agent Prompt
+
+Read `docs/25-design-system.md`, `docs/26-ui-specification.md`, `docs/27-component-library.md`, and `agents/frontend-agent.md`. Implement the assigned route or component using existing tokens and contracts. Include loading, empty, error, offline, long-content, mobile, keyboard, focus, and reduced-motion behavior. Do not invent server endpoints or place secrets/provider keys in client code. Run the production build and targeted interaction/accessibility tests. Return changed files, exact results, screenshots/browser evidence, performance impact, and unresolved requirements.
