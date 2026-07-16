@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- captures can come from arbitrary user-hosted media URLs */
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -6,8 +7,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   Activity, Archive, Atom, Bell, Blocks, Bot, Check, ChevronRight, CircleGauge,
-  Camera, Command, Database, FolderKanban, Grid2X2, Hexagon, Import, LayoutDashboard,
-  ExternalLink, Library, List, Menu, Network, Plus, Search, Settings, ShieldCheck,
+  Camera, Command, Database, Eye, FolderKanban, Grid2X2, Heart, Hexagon, Import, LayoutDashboard,
+  ExternalLink, Library, List, Menu, MessageCircle, Network, Plus, Search, Settings, ShieldCheck,
   Sparkles, TrendingUp, WandSparkles, X, Zap,
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -43,21 +44,33 @@ function Score({ value }: { value: number }) {
   return <span className={`score ${value > 89 ? "hot" : ""}`}>{value.toString().padStart(2, "0")}</span>;
 }
 
+function compactNumber(value?: number) {
+  if (value === undefined) return "—";
+  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
 function IdeaCard({ idea, compact = false }: { idea: Idea; compact?: boolean }) {
   const { selectedIds, toggleSelected } = useVaultStore();
   const selected = selectedIds.includes(idea.id);
+  const platform = idea.platform || (idea.sourceUrl?.includes("instagram") ? "Instagram" : idea.category);
+  const thumbnail = idea.thumbnail || (idea.mediaType === "image" ? idea.sourceUrl : undefined);
+  const initials = idea.creator.replace("@", "").split(/[._-]/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   return (
-    <motion.article layout className={`idea-card ${selected ? "selected" : ""} ${compact ? "compact" : ""}`} whileHover={{ y: -4 }}>
+    <motion.article layout className={`idea-card ${selected ? "selected" : ""} ${compact ? "compact" : ""}`} style={{ "--accent": idea.accent } as React.CSSProperties} whileHover={{ y: -4 }}>
       <button className="card-select" aria-label={`${selected ? "Deselect" : "Select"} ${idea.title}`} onClick={() => toggleSelected(idea.id)}>
         {selected ? <Check size={13} /> : <Plus size={13} />}
       </button>
-      <div className="card-visual" style={{ "--accent": idea.accent } as React.CSSProperties}>
-        <span>{idea.category.slice(0, 3).toUpperCase()}</span><Hexagon size={42} strokeWidth={1} />
+      <div className="card-visual">
+        {thumbnail ? <img src={thumbnail} alt={`${idea.title} saved by ${idea.creator}`} /> : <div className="media-fallback"><span>{idea.category.slice(0, 3).toUpperCase()}</span><Hexagon size={42} strokeWidth={1} /></div>}
+        <span className="platform-chip">{platform.toUpperCase()}</span>
+        {idea.duration && <span className="duration-chip">{idea.duration}</span>}
       </div>
       <div className="card-body">
-        <div className="eyebrow"><span>{idea.creator}</span><span>{idea.saved} AGO</span></div>
+        <div className="creator-row"><span className="creator-avatar" aria-hidden="true">{initials || "VA"}</span><div><b>{idea.creator}</b><span>{platform} · SAVED {idea.saved.toUpperCase()} AGO</span></div></div>
         <h3>{idea.title}</h3>
-        {!compact && <p>{idea.insight}</p>}
+        <blockquote className="hook-block"><span>HOOK / FIRST 3 SECONDS</span><p>“{idea.hook || idea.title}”</p></blockquote>
+        {!compact && <><p className="idea-insight">{idea.insight}</p>{idea.savedNote && <p className="saved-note"><span>WHY I SAVED THIS</span>{idea.savedNote}</p>}</>}
+        {(idea.views !== undefined || idea.likes !== undefined || idea.comments !== undefined) && <div className="save-metrics" aria-label="Performance when saved"><span className="metric-label">AT SAVE</span><span><Eye />{compactNumber(idea.views)}</span><span><Heart />{compactNumber(idea.likes)}</span><span><MessageCircle />{compactNumber(idea.comments)}</span></div>}
         <div className="card-meta"><div>{idea.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div><Score value={idea.trend} /></div>
         {idea.sourceUrl && <a className="source-link" href={idea.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`Open source for ${idea.title}`}>OPEN SOURCE <ExternalLink size={12}/></a>}
       </div>
@@ -93,9 +106,10 @@ function DashboardView() {
 
 function LibraryView() {
   const ideas=useVaultStore((state)=>state.ideas); const searchParams=useSearchParams(); const [mode,setMode]=useState<"grid"|"list">("grid"); const [query,setQuery]=useState(searchParams.get('q')||''); const [source,setSource]=useState('ALL');
-  const filtered=ideas.filter(i=>(source==='ALL'||i.category.toUpperCase()===source)&&(i.title+i.creator+i.tags.join(" ")).toLowerCase().includes(query.toLowerCase()));
-  return <><Header index="02" title="IDEA / LIBRARY" copy="Every capture, decoded and ready for recombination." />
-    <div className="toolbar"><label><Search size={16}/><input aria-label="Search library" value={query} onChange={e=>setQuery(e.target.value)} placeholder="FILTER THE VAULT..."/></label><div className="filter-pills">{['ALL','INSTAGRAM','CAPTURED'].map(option=><button key={option} className={source===option?'active':''} onClick={()=>setSource(option)}>{option} {option==='ALL'?ideas.length:ideas.filter(idea=>idea.category.toUpperCase()===option).length}</button>)}</div><div className="view-toggle"><button aria-label="Grid view" className={mode==='grid'?'active':''} onClick={()=>setMode('grid')}><Grid2X2 size={16}/></button><button aria-label="List view" className={mode==='list'?'active':''} onClick={()=>setMode('list')}><List size={16}/></button></div></div>
+  const belongsTo=(idea:Idea,option:string)=>option==='ALL'||idea.platform?.toUpperCase()===option||idea.category.toUpperCase()===option;
+  const filtered=ideas.filter(i=>belongsTo(i,source)&&(i.title+i.creator+i.tags.join(" ")+(i.hook||"")+(i.savedNote||"")).toLowerCase().includes(query.toLowerCase()));
+  return <><Header index="02" title="IDEA / LIBRARY" copy="Every save with its image, creator, opening hook, performance snapshot and the reason you kept it." />
+    <div className="toolbar"><label><Search size={16}/><input aria-label="Search library" value={query} onChange={e=>setQuery(e.target.value)} placeholder="SEARCH HOOKS, CREATORS, NOTES..."/></label><div className="filter-pills">{['ALL','INSTAGRAM','TIKTOK','CAPTURED'].map(option=><button key={option} className={source===option?'active':''} onClick={()=>setSource(option)}>{option} {ideas.filter(idea=>belongsTo(idea,option)).length}</button>)}</div><div className="view-toggle"><button aria-label="Grid view" className={mode==='grid'?'active':''} onClick={()=>setMode('grid')}><Grid2X2 size={16}/></button><button aria-label="List view" className={mode==='list'?'active':''} onClick={()=>setMode('list')}><List size={16}/></button></div></div>
     <div className={mode==='grid'?"idea-grid four":"idea-list"}>{filtered.map(i=><IdeaCard idea={i} compact={mode==='list'} key={i.id}/>)}</div>
     {filtered.length===0&&<EmptyState title="NO MATCHING SIGNAL" copy="Try a broader phrase, creator, or semantic concept."/>}</>;
 }

@@ -67,3 +67,20 @@ test("Idea Galaxy ships the complete scalable exploration architecture", async (
   assert.match(graph, /RelationshipKind/); assert.match(graph, /High Semantic Similarity/); assert.match(graph, /Frequently Viewed Together/); assert.match(graph, /embeddingVector/); assert.match(graph, /slice\(0, 12\)/); assert.match(graph, /galaxyContextForAI/);
   assert.match(worker, /buildGalaxyGraph/); assert.match(css, /prefers-reduced-motion/);
 });
+
+test("saved-post surfaces preserve media, creator, hook, and save-time context", async () => {
+  const [component, galaxy, data, saves] = await Promise.all([
+    readFile(new URL("../components/vault-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/galaxy.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/data.ts", import.meta.url), "utf8"),
+    readdir(new URL("../public/saves/", import.meta.url)),
+  ]);
+  assert.match(component, /HOOK \/ FIRST 3 SECONDS/);
+  assert.match(component, /WHY I SAVED THIS/);
+  assert.match(component, /AT SAVE/);
+  assert.match(component, /idea\.thumbnail/);
+  assert.match(galaxy, /inspectorHook/);
+  assert.match(data, /thumbnail: "\/saves\/01-hook\.jpg"/);
+  assert.match(data, /views: 218400/);
+  assert.equal(saves.filter((file) => file.endsWith(".jpg")).length, 6);
+});

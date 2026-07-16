@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- captures can come from arbitrary user-hosted media URLs */
 "use client";
 
 import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
@@ -149,7 +150,7 @@ function KanbanView({ graph, activeIds, selectedId, onSelect, onDrag }: { graph:
 }
 
 function LibraryGalaxyView({ nodes, activeIds, selectedId, onSelect, onDrag }: { nodes: GalaxyNode[]; activeIds: Set<string>; selectedId?: string; onSelect: (id: string) => void; onDrag: (event: React.DragEvent, id: string) => void }) {
-  return <div className={styles.libraryGrid}>{nodes.filter((node) => activeIds.has(node.id)).map((node) => <button draggable onDragStart={(event) => onDrag(event, node.id)} key={node.id} onClick={() => onSelect(node.id)} className={node.id === selectedId ? styles.activeCard : ""}><div className={styles.thumb} style={{ "--node": node.accent } as React.CSSProperties}><PlatformMark platform={node.platform} />{node.favorite&&<Heart className={styles.favorite} fill="currentColor" aria-label="Favorite idea"/>}<span>{node.topic.slice(0, 3).toUpperCase()}</span><CircleDot /></div><small>{node.creator} · {node.saved} ago</small><b>{node.title}</b><p>{node.insight}</p><footer><span>{node.collections.length?node.collections.join(' · '):node.emotionalTone}</span><strong>↑{node.trend}</strong></footer></button>)}</div>;
+  return <div className={styles.libraryGrid}>{nodes.filter((node) => activeIds.has(node.id)).map((node) => { const thumbnail=node.thumbnail||(node.mediaType==="image"?node.sourceUrl:undefined); return <button draggable onDragStart={(event) => onDrag(event, node.id)} key={node.id} onClick={() => onSelect(node.id)} className={node.id === selectedId ? styles.activeCard : ""}><div className={styles.thumb} style={{ "--node": node.accent } as React.CSSProperties}>{thumbnail?<img src={thumbnail} alt=""/>:<><span>{node.topic.slice(0, 3).toUpperCase()}</span><CircleDot /></>}<PlatformMark platform={node.platform} />{node.favorite&&<Heart className={styles.favorite} fill="currentColor" aria-label="Favorite idea"/>}{node.duration&&<em>{node.duration}</em>}</div><small>{node.creator} · {node.saved} ago</small><b>{node.title}</b><blockquote><span>HOOK / FIRST 3 SECONDS</span>{node.hook||node.title}</blockquote><p>{node.insight}</p><footer><span>{node.collections.length?node.collections.join(' · '):node.emotionalTone}</span><strong>↑{node.trend}</strong></footer></button>; })}</div>;
 }
 
 function HeatmapView({ graph, onSelectCluster }: { graph: GalaxyGraph; onSelectCluster: (cluster: string) => void }) {
@@ -181,8 +182,8 @@ function Inspector({ graph, node, selectedForFusion, onClose, onSelect, onToggle
   const relatedEdges = graph.edges.filter((edge) => graph.nodes[edge.source].id === node.id || graph.nodes[edge.target].id === node.id).sort((a, b) => b.strength - a.strength).slice(0, 4);
   return <aside className={styles.inspector} aria-label={`Details for ${node.title}`}>
     <header><div><PlatformMark platform={node.platform} /><span>{node.platform} / {node.topic}</span></div><button onClick={onClose} aria-label="Close node details"><X /></button></header>
-    <div className={styles.inspectorPreview} style={{ "--node": node.accent } as React.CSSProperties}><span>{node.topic.slice(0, 3).toUpperCase()}</span><BrainCircuit /><i /></div>
-    <div className={styles.inspectorBody}><small>{node.creator} · SAVED {node.saved.toUpperCase()} AGO</small><h2>{node.title}</h2><p>{node.insight}</p>
+    <div className={styles.inspectorPreview} style={{ "--node": node.accent } as React.CSSProperties}>{node.thumbnail||(node.mediaType==="image"&&node.sourceUrl)?<img src={node.thumbnail||node.sourceUrl} alt={`${node.title} saved from ${node.creator}`}/>:<><span>{node.topic.slice(0, 3).toUpperCase()}</span><BrainCircuit /><i /></>}</div>
+    <div className={styles.inspectorBody}><small>{node.creator} · SAVED {node.saved.toUpperCase()} AGO</small><h2>{node.title}</h2><blockquote className={styles.inspectorHook}><span>HOOK / FIRST 3 SECONDS</span>{node.hook||node.title}</blockquote><p>{node.insight}</p>
       <div className={styles.scoreStrip}><div><span>TREND</span><b>{node.trend}</b></div><div><span>VIRALITY</span><b>{node.virality}</b></div><div><span>CONFIDENCE</span><b>{node.confidence}%</b></div></div>
       <dl><dt>EMOTIONAL TONE</dt><dd>{node.emotionalTone}</dd><dt>HOOK ANALYSIS</dt><dd>{node.hookAnalysis}</dd><dt>AUDIENCE</dt><dd>{node.audience}</dd><dt>EDITING / STORY</dt><dd>{node.editingStyle} · {node.storytellingStyle}</dd>{node.transcript&&<><dt>TRANSCRIPT</dt><dd>{node.transcript.slice(0,260)}{node.transcript.length>260?'…':''}</dd></>}</dl>
       <div className={styles.keywordRow}>{node.favorite&&<span>♥ FAVORITE</span>}{node.collections.map((collection)=><span key={`collection-${collection}`}>COLLECTION / {collection}</span>)}{node.keywords.slice(0, 6).map((keyword) => <span key={keyword}>#{keyword}</span>)}</div>

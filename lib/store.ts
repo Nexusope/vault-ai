@@ -48,6 +48,10 @@ export const useVaultStore = create<VaultState>((set) => ({
       sourceUrl: record.sourceUrl || undefined,
       transcript: record.transcript,
       mediaType: record.mediaType,
+      thumbnail: record.mediaType === "image" && record.sourceUrl ? record.sourceUrl : undefined,
+      hook: record.transcript?.split(/[.!?]/)[0]?.trim() || record.title,
+      savedNote: "Captured to the vault for later analysis and recombination.",
+      platform: record.source === "instagram" ? "Instagram" : "Web",
       confidence: record.confidence,
       createdAt: record.createdAt,
     }));
