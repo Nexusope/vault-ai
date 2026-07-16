@@ -1,6 +1,7 @@
 export type Idea = {
   id: string; title: string; creator: string; category: string; tags: string[];
   trend: number; saved: string; accent: string; insight: string;
+  sourceUrl?: string;
 };
 
 export const ideas: Idea[] = [

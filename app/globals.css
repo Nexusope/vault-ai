@@ -14,3 +14,4 @@
 :focus-visible{outline:2px solid var(--green);outline-offset:3px}
 .briefing a{color:var(--text);display:inline-flex;align-items:center;gap:7px;font:800 9px monospace;letter-spacing:1px}.briefing a:hover{color:var(--green)}
 .collection-grid article>a{position:absolute;right:20px;bottom:20px;color:var(--accent)}
+.source-link{display:inline-flex;align-items:center;gap:7px;margin-top:17px;border:1px solid var(--green2);padding:8px 10px;color:var(--green);font:800 8px monospace;letter-spacing:.8px;text-decoration:none}.source-link:hover,.source-link:focus-visible{background:var(--green);color:#050705;outline:none;box-shadow:0 0 20px rgba(182,255,59,.16)}

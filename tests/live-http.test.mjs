@@ -22,10 +22,11 @@ test("live API rejects invalid input and persists a valid idea", async () => {
   const disabledProviders = await fetch(base + "/api/ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: "Verify disabled routing", providers: [] }) });
   assert.equal(disabledProviders.status, 503); assert.equal((await disabledProviders.json()).fallbackCount, 0);
   const title = `QA capture ${Date.now()}`;
-  const created = await fetch(base + "/api/ideas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title, summary: "Automated persistence verification", tags: ["qa"] }) });
-  assert.equal(created.status, 201); assert.equal((await created.json()).idea.title, title);
+  const sourceUrl = `https://example.com/vault-qa/${Date.now()}`;
+  const created = await fetch(base + "/api/ideas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title, sourceUrl, summary: "Automated persistence verification", tags: ["qa"] }) });
+  assert.equal(created.status, 201); const createdIdea = (await created.json()).idea; assert.equal(createdIdea.title, title); assert.equal(createdIdea.sourceUrl, sourceUrl);
   const list = await fetch(base + "/api/ideas"); assert.equal(list.status, 200);
-  assert.ok((await list.json()).ideas.some((idea) => idea.title === title));
+  assert.ok((await list.json()).ideas.some((idea) => idea.title === title && idea.sourceUrl === sourceUrl));
 });
 
 test("server-rendered collection filters do not leak unrelated ideas", async () => {
