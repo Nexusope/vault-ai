@@ -13,6 +13,8 @@ test("live routes and health respond", async () => {
 });
 
 test("live API rejects invalid input and persists a valid idea", async () => {
+  const invalidPagination = await fetch(base + "/api/ideas?limit=9999"); assert.equal(invalidPagination.status, 400);
+  const firstPage = await fetch(base + "/api/ideas?limit=1&offset=0"); assert.equal(firstPage.status, 200); const firstPageData = await firstPage.json(); assert.equal(firstPageData.pagination.limit, 1); assert.ok(firstPageData.ideas.length <= 1);
   const invalidIdea = await fetch(base + "/api/ideas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "" }) });
   assert.equal(invalidIdea.status, 400);
   const invalidAI = await fetch(base + "/api/ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: "" }) });
@@ -34,6 +36,18 @@ test("server-rendered collection filters do not leak unrelated ideas", async () 
   assert.match(hook, /3-second tension hook/); assert.doesNotMatch(hook, /Quiet luxury sound map/);
   const empty = await (await fetch(base + "/library?q=__empty_collection__")).text();
   assert.match(empty, /NO MATCHING SIGNAL/); assert.doesNotMatch(empty, /Quiet luxury sound map/);
+});
+
+test("Idea Galaxy server output exposes the living graph workspace", async () => {
+  const html = await (await fetch(base + "/galaxy")).text();
+  assert.match(html, /LIVING KNOWLEDGE UNIVERSE/);
+  assert.match(html, /Semantic galaxy search/);
+  assert.match(html, /FUSION DOCK/);
+});
+
+test("private media route rejects unsafe object keys", async () => {
+  const response = await fetch(base + "/api/media?key=../../secret");
+  assert.equal(response.status, 400);
 });
 
 test("local Instagram bridge health is installed, bounded, and credential-safe", async () => {

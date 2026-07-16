@@ -2,6 +2,10 @@ export type Idea = {
   id: string; title: string; creator: string; category: string; tags: string[];
   trend: number; saved: string; accent: string; insight: string;
   sourceUrl?: string;
+  transcript?: string | null;
+  mediaType?: string;
+  confidence?: number;
+  createdAt?: string;
 };
 
 export const ideas: Idea[] = [

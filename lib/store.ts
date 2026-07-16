@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { ideas as seedIdeas, type Idea } from "./data";
 
-type StoredIdea = { id: string; title: string; creator: string; summary: string; source: string; sourceUrl?: string | null; tags: string };
+export type StoredIdea = { id: string; title: string; creator: string; summary: string; source: string; sourceUrl?: string | null; tags: string; transcript?: string | null; mediaType?: string; trendScore?: number; confidence?: number; createdAt?: string };
 
 type VaultState = {
   selectedIds: string[];
@@ -41,11 +41,15 @@ export const useVaultStore = create<VaultState>((set) => ({
       creator: record.creator || "unknown",
       category: record.source === "instagram" ? "Instagram" : "Captured",
       tags: (() => { try { return JSON.parse(record.tags || "[]") as string[]; } catch { return []; } })(),
-      trend: 50,
+      trend: record.trendScore && record.trendScore > 0 ? Math.round(record.trendScore) : 50,
       saved: "now",
       accent: ["#b6ff3b", "#7bf1ff", "#ff6b2c"][index % 3],
       insight: record.summary || "Captured signal awaiting enrichment.",
       sourceUrl: record.sourceUrl || undefined,
+      transcript: record.transcript,
+      mediaType: record.mediaType,
+      confidence: record.confidence,
+      createdAt: record.createdAt,
     }));
     const remoteIds = new Set(remote.map((idea) => idea.id));
     return { ideas: [...remote, ...state.ideas.filter((idea) => !remoteIds.has(idea.id))] };
