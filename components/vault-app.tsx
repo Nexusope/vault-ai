@@ -49,11 +49,20 @@ function compactNumber(value?: number) {
   return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
+function ideaThumbnail(idea: Idea) {
+  return idea.thumbnail || (idea.mediaType === "image" ? idea.sourceUrl : undefined);
+}
+
+function savedWhen(saved: string) {
+  return saved.toLowerCase() === "now" ? "SAVED JUST NOW" : `SAVED ${saved.toUpperCase()} AGO`;
+}
+
 function IdeaCard({ idea, compact = false }: { idea: Idea; compact?: boolean }) {
   const { selectedIds, toggleSelected } = useVaultStore();
   const selected = selectedIds.includes(idea.id);
   const platform = idea.platform || (idea.sourceUrl?.includes("instagram") ? "Instagram" : idea.category);
-  const thumbnail = idea.thumbnail || (idea.mediaType === "image" ? idea.sourceUrl : undefined);
+  const thumbnail = ideaThumbnail(idea);
+  const creator = idea.creator === "unknown" ? "CREATOR UNAVAILABLE" : idea.creator;
   const initials = idea.creator.replace("@", "").split(/[._-]/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   return (
     <motion.article layout className={`idea-card ${selected ? "selected" : ""} ${compact ? "compact" : ""}`} style={{ "--accent": idea.accent } as React.CSSProperties} whileHover={{ y: -4 }}>
@@ -66,7 +75,7 @@ function IdeaCard({ idea, compact = false }: { idea: Idea; compact?: boolean }) 
         {idea.duration && <span className="duration-chip">{idea.duration}</span>}
       </div>
       <div className="card-body">
-        <div className="creator-row"><span className="creator-avatar" aria-hidden="true">{initials || "VA"}</span><div><b>{idea.creator}</b><span>{platform} · SAVED {idea.saved.toUpperCase()} AGO</span></div></div>
+        <div className="creator-row"><span className="creator-avatar" aria-hidden="true">{initials || "VA"}</span><div><b>{creator}</b><span>{platform} · {savedWhen(idea.saved)}</span></div></div>
         <h3>{idea.title}</h3>
         <blockquote className="hook-block"><span>HOOK / FIRST 3 SECONDS</span><p>“{idea.hook || idea.title}”</p></blockquote>
         {!compact && <><p className="idea-insight">{idea.insight}</p>{idea.savedNote && <p className="saved-note"><span>WHY I SAVED THIS</span>{idea.savedNote}</p>}</>}
@@ -98,7 +107,7 @@ function DashboardView() {
     </section>
     <section className="section-block">
       <div className="section-title"><div><span>02 / RECENT CAPTURES</span><h2>Your evolving source material.</h2></div><Link href="/library">OPEN LIBRARY <ChevronRight size={14}/></Link></div>
-      <div className="idea-grid">{ideas.slice(0,3).map(i=><IdeaCard idea={i} key={i.id}/>)}</div>
+      <div className="idea-grid">{[...ideas].sort((a,b)=>Number(Boolean(ideaThumbnail(b)))-Number(Boolean(ideaThumbnail(a)))).slice(0,3).map(i=><IdeaCard idea={i} key={i.id}/>)}</div>
     </section>
     <section className="activity-panel"><div><span className="terminal-label">{"// PIPELINE ACTIVITY"}</span>{activity.map(row=><div className="activity-row" key={row[1]}><StatusDot color="cyan"/><b>{row[0]}</b><span>{row[1]}</span><em>{row[2]}</em><small>{row[3]}</small></div>)}</div><aside><Activity size={24}/><strong>ALL SYSTEMS NOMINAL</strong><span>Last check 12 sec ago</span></aside></section>
   </>;
@@ -107,7 +116,7 @@ function DashboardView() {
 function LibraryView() {
   const ideas=useVaultStore((state)=>state.ideas); const searchParams=useSearchParams(); const [mode,setMode]=useState<"grid"|"list">("grid"); const [query,setQuery]=useState(searchParams.get('q')||''); const [source,setSource]=useState('ALL');
   const belongsTo=(idea:Idea,option:string)=>option==='ALL'||idea.platform?.toUpperCase()===option||idea.category.toUpperCase()===option;
-  const filtered=ideas.filter(i=>belongsTo(i,source)&&(i.title+i.creator+i.tags.join(" ")+(i.hook||"")+(i.savedNote||"")).toLowerCase().includes(query.toLowerCase()));
+  const filtered=ideas.filter(i=>belongsTo(i,source)&&(i.title+i.creator+i.tags.join(" ")+(i.hook||"")+(i.savedNote||"")).toLowerCase().includes(query.toLowerCase())).sort((a,b)=>Number(Boolean(ideaThumbnail(b)))-Number(Boolean(ideaThumbnail(a))));
   return <><Header index="02" title="IDEA / LIBRARY" copy="Every save with its image, creator, opening hook, performance snapshot and the reason you kept it." />
     <div className="toolbar"><label><Search size={16}/><input aria-label="Search library" value={query} onChange={e=>setQuery(e.target.value)} placeholder="SEARCH HOOKS, CREATORS, NOTES..."/></label><div className="filter-pills">{['ALL','INSTAGRAM','TIKTOK','CAPTURED'].map(option=><button key={option} className={source===option?'active':''} onClick={()=>setSource(option)}>{option} {ideas.filter(idea=>belongsTo(idea,option)).length}</button>)}</div><div className="view-toggle"><button aria-label="Grid view" className={mode==='grid'?'active':''} onClick={()=>setMode('grid')}><Grid2X2 size={16}/></button><button aria-label="List view" className={mode==='list'?'active':''} onClick={()=>setMode('list')}><List size={16}/></button></div></div>
     <div className={mode==='grid'?"idea-grid four":"idea-list"}>{filtered.map(i=><IdeaCard idea={i} compact={mode==='list'} key={i.id}/>)}</div>

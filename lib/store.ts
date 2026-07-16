@@ -35,7 +35,7 @@ export const useVaultStore = create<VaultState>((set) => ({
   clearSelected: () => set({ selectedIds: [] }),
   setCommandOpen: (commandOpen) => set({ commandOpen }),
   hydrateIdeas: (records) => set((state) => {
-    const remote = records.map((record, index): Idea => ({
+    const remote = records.filter((record) => !/^(QA capture \d+|FINAL QA \d+|QA unknown|Browser QA signal)$/.test(record.title)).map((record, index): Idea => ({
       id: record.id,
       title: record.title,
       creator: record.creator || "unknown",
