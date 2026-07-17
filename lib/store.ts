@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { ideas as seedIdeas, type Idea } from "./data";
 
-export type StoredIdea = { id: string; title: string; creator: string; summary: string; source: string; sourceUrl?: string | null; tags: string; transcript?: string | null; mediaType?: string; trendScore?: number; confidence?: number; createdAt?: string };
+export type StoredIdea = { id: string; title: string; creator: string; summary: string; source: string; sourceUrl?: string | null; thumbnailUrl?: string | null; hook?: string | null; tags: string; transcript?: string | null; mediaType?: string; trendScore?: number; confidence?: number; createdAt?: string };
 
 type VaultState = {
   selectedIds: string[];
@@ -59,8 +59,8 @@ export const useVaultStore = create<VaultState>((set) => ({
       sourceUrl: record.sourceUrl || undefined,
       transcript: record.transcript,
       mediaType: record.mediaType,
-      thumbnail: record.mediaType === "image" && record.sourceUrl ? record.sourceUrl : undefined,
-      hook: record.transcript?.split(/[.!?]/)[0]?.trim() || record.title,
+      thumbnail: record.thumbnailUrl || (record.mediaType === "image" && record.sourceUrl ? record.sourceUrl : undefined),
+      hook: record.hook || record.transcript?.split(/[.!?]/)[0]?.trim() || record.title,
       savedNote: "Captured to the vault for later analysis and recombination.",
       platform: record.source === "instagram" ? "Instagram" : "Web",
       confidence: record.confidence,

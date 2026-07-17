@@ -25,8 +25,10 @@ test("live API rejects invalid input and persists a valid idea", async () => {
   assert.equal(disabledProviders.status, 503); assert.equal((await disabledProviders.json()).fallbackCount, 0);
   const title = `QA capture ${Date.now()}`;
   const sourceUrl = `https://example.com/vault-qa/${Date.now()}`;
-  const created = await fetch(base + "/api/ideas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title, sourceUrl, summary: "Automated persistence verification", tags: ["qa"] }) });
-  assert.equal(created.status, 201); const createdIdea = (await created.json()).idea; assert.equal(createdIdea.title, title); assert.equal(createdIdea.sourceUrl, sourceUrl);
+  const thumbnailUrl = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3";
+  const hook = "A persisted three-second hook.";
+  const created = await fetch(base + "/api/ideas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title, sourceUrl, thumbnailUrl, hook, summary: "Automated persistence verification", tags: ["qa"] }) });
+  assert.equal(created.status, 201); const createdIdea = (await created.json()).idea; assert.equal(createdIdea.title, title); assert.equal(createdIdea.sourceUrl, sourceUrl); assert.equal(createdIdea.thumbnailUrl, thumbnailUrl); assert.equal(createdIdea.hook, hook);
   const list = await fetch(base + "/api/ideas"); assert.equal(list.status, 200);
   assert.ok((await list.json()).ideas.some((idea) => idea.title === title && idea.sourceUrl === sourceUrl));
 });

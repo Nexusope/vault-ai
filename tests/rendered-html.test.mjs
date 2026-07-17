@@ -28,8 +28,10 @@ test("API source validates before database or provider work", async () => {
   ]);
   assert.match(ideas, /safeParse/); assert.match(ideas, /status: 400/); assert.match(ideas, /await ensureSchema/);
   assert.match(ideas, /nextOffset/); assert.match(ideas, /sourceFromUrl/);
+  assert.match(ideas, /enrichLink/); assert.match(ideas, /thumbnailUrl/); assert.match(ideas, /hook:/);
   assert.match(ai, /safeParse/); assert.match(ai, /status: 400/); assert.match(ai, /routeAI/);
   assert.match(db, /CREATE TABLE IF NOT EXISTS ideas/); assert.match(db, /env\.DB\.batch/);
+  assert.match(db, /PRAGMA table_info\(ideas\)/); assert.match(db, /thumbnail_url/);
   assert.match(media, /20 \* 1024 \* 1024/); assert.match(media, /Unsupported media type/); assert.match(media, /env as unknown as \{ MEDIA/);
 });
 
@@ -69,14 +71,16 @@ test("Idea Galaxy ships the complete scalable exploration architecture", async (
 });
 
 test("saved-post surfaces preserve media, creator, hook, and save-time context", async () => {
-  const [component, galaxy, data, store, saves] = await Promise.all([
+  const [component, galaxy, data, store, css, saves] = await Promise.all([
     readFile(new URL("../components/vault-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/galaxy.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/data.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/store.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readdir(new URL("../public/saves/", import.meta.url)),
   ]);
   assert.match(component, /HOOK \/ FIRST 3 SECONDS/);
+  assert.match(component, /media-hook/);
   assert.match(component, /WHY I SAVED THIS/);
   assert.match(component, /AT SAVE/);
   assert.match(component, /idea\.thumbnail/);
@@ -87,6 +91,8 @@ test("saved-post surfaces preserve media, creator, hook, and save-time context",
   assert.match(data, /thumbnail: "\/saves\/01-hook\.jpg"/);
   assert.match(data, /views: 218400/);
   assert.match(store, /QA capture/);
+  assert.match(css, /columns:3 270px/);
+  assert.match(css, /the post is the interface/);
   assert.equal(saves.filter((file) => file.endsWith(".jpg")).length, 6);
 });
 

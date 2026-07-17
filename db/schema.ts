@@ -9,6 +9,8 @@ export const ideas = sqliteTable("ideas", {
   summary: text("summary").notNull().default(""),
   creator: text("creator").notNull().default("unknown"),
   mediaType: text("media_type").notNull().default("post"),
+  thumbnailUrl: text("thumbnail_url"),
+  hook: text("hook"),
   transcript: text("transcript"),
   tags: text("tags").notNull().default("[]"),
   trendScore: real("trend_score").notNull().default(0),

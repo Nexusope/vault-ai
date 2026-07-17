@@ -2,8 +2,9 @@ import { desc } from "drizzle-orm";
 import { z } from "zod";
 import { ensureSchema, getDb } from "../../../db";
 import { ideas } from "../../../db/schema";
+import { enrichLink } from "../../../lib/link-enrichment";
 
-const createIdea = z.object({ title: z.string().trim().min(2).max(180), summary: z.string().trim().max(4000).default(""), sourceUrl: z.string().url().max(2048).optional(), creator: z.string().trim().max(100).default("unknown"), mediaType: z.enum(["post", "pdf", "image", "voice-note"]).default("post"), tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]) }).strict();
+const createIdea = z.object({ title: z.string().trim().min(2).max(180), summary: z.string().trim().max(4000).default(""), sourceUrl: z.string().url().max(2048).optional(), thumbnailUrl: z.string().url().max(2048).optional(), hook: z.string().trim().max(500).optional(), creator: z.string().trim().max(100).default("unknown"), mediaType: z.enum(["post", "pdf", "image", "voice-note"]).default("post"), tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]) }).strict();
 const listIdeas = z.object({ limit: z.coerce.number().int().min(1).max(500).default(250), offset: z.coerce.number().int().min(0).max(100_000).default(0) });
 const routeError = (error: unknown) => { const message = error instanceof Error ? error.message : "Unexpected database error"; return message.includes("no such table") ? "Database schema is not initialized. Apply the generated D1 migration." : message; };
 const sourceFromUrl = (sourceUrl?: string) => {
@@ -40,7 +41,15 @@ export async function POST(request: Request) {
   if (!parsed.success) return Response.json({ error: "Invalid idea", details: parsed.error.flatten() }, { status: 400 });
   try {
     await ensureSchema();
-    const [idea] = await getDb().insert(ideas).values({ id: crypto.randomUUID(), ...parsed.data, source: sourceFromUrl(parsed.data.sourceUrl), tags: JSON.stringify(parsed.data.tags) }).returning();
+    const enrichment = parsed.data.sourceUrl && !parsed.data.thumbnailUrl && parsed.data.mediaType === "post" ? await enrichLink(parsed.data.sourceUrl) : {};
+    const [idea] = await getDb().insert(ideas).values({
+      id: crypto.randomUUID(), ...parsed.data,
+      summary: parsed.data.summary || enrichment.description || "",
+      creator: parsed.data.creator === "unknown" ? enrichment.creator || "unknown" : parsed.data.creator,
+      thumbnailUrl: parsed.data.thumbnailUrl || enrichment.thumbnailUrl,
+      hook: parsed.data.hook || enrichment.hook || parsed.data.title,
+      source: sourceFromUrl(parsed.data.sourceUrl), tags: JSON.stringify(parsed.data.tags),
+    }).returning();
     return Response.json({ idea }, { status: 201 });
   } catch (error) { return Response.json({ error: routeError(error) }, { status: 500 }); }
 }

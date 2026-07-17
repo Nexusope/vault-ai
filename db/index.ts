@@ -12,14 +12,27 @@ export function getDb() {
   return drizzle(env.DB, { schema });
 }
 
-export async function ensureSchema() {
+let schemaReady: Promise<void> | undefined;
+
+async function initializeSchema() {
   if (!env.DB) throw new Error("Cloudflare D1 binding `DB` is unavailable.");
   await env.DB.batch([
-    env.DB.prepare("CREATE TABLE IF NOT EXISTS ideas (id TEXT PRIMARY KEY NOT NULL, source TEXT DEFAULT 'manual' NOT NULL, source_url TEXT, title TEXT NOT NULL, summary TEXT DEFAULT '' NOT NULL, creator TEXT DEFAULT 'unknown' NOT NULL, media_type TEXT DEFAULT 'post' NOT NULL, transcript TEXT, tags TEXT DEFAULT '[]' NOT NULL, trend_score REAL DEFAULT 0 NOT NULL, confidence REAL DEFAULT 0 NOT NULL, status TEXT DEFAULT 'ready' NOT NULL, collection_id TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL, updated_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS ideas (id TEXT PRIMARY KEY NOT NULL, source TEXT DEFAULT 'manual' NOT NULL, source_url TEXT, title TEXT NOT NULL, summary TEXT DEFAULT '' NOT NULL, creator TEXT DEFAULT 'unknown' NOT NULL, media_type TEXT DEFAULT 'post' NOT NULL, thumbnail_url TEXT, hook TEXT, transcript TEXT, tags TEXT DEFAULT '[]' NOT NULL, trend_score REAL DEFAULT 0 NOT NULL, confidence REAL DEFAULT 0 NOT NULL, status TEXT DEFAULT 'ready' NOT NULL, collection_id TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL, updated_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS ideas_created_idx ON ideas (created_at)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS ideas_trend_idx ON ideas (trend_score)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS collections (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, description TEXT DEFAULT '' NOT NULL, color TEXT DEFAULT '#b6ff3b' NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS imports (id TEXT PRIMARY KEY NOT NULL, source TEXT NOT NULL, source_ref TEXT NOT NULL, state TEXT DEFAULT 'queued' NOT NULL, progress INTEGER DEFAULT 0 NOT NULL, error TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL, completed_at TEXT)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY NOT NULL, type TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, read INTEGER DEFAULT false NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL)"),
   ]);
+  const info = await env.DB.prepare("PRAGMA table_info(ideas)").all<{ name: string }>();
+  const columns = new Set((info.results || []).map((column) => column.name));
+  const upgrades = [];
+  if (!columns.has("thumbnail_url")) upgrades.push(env.DB.prepare("ALTER TABLE ideas ADD COLUMN thumbnail_url TEXT"));
+  if (!columns.has("hook")) upgrades.push(env.DB.prepare("ALTER TABLE ideas ADD COLUMN hook TEXT"));
+  if (upgrades.length) await env.DB.batch(upgrades);
+}
+
+export async function ensureSchema() {
+  schemaReady ||= initializeSchema().catch((error) => { schemaReady = undefined; throw error; });
+  await schemaReady;
 }
