@@ -89,3 +89,20 @@ test("saved-post surfaces preserve media, creator, hook, and save-time context",
   assert.match(store, /QA capture/);
   assert.equal(saves.filter((file) => file.endsWith(".jpg")).length, 6);
 });
+
+test("Fusion Lab preserves inputs and produces a complete provider-backed fallback pack", async () => {
+  const [component, store, css] = await Promise.all([
+    readFile(new URL("../components/vault-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/store.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(component, /AUTO-PICK 2 HIGH SIGNALS/);
+  assert.match(component, /fetch\('\/api\/ai'/);
+  assert.match(component, /LOCAL FALLBACK/);
+  assert.match(component, /AbortSignal\.timeout\(12000\)/);
+  assert.match(component, /buildFusionPack/);
+  assert.match(component, /AI SYNTHESIS/);
+  assert.match(store, /vault-ai:selected/);
+  assert.match(store, /slice\(0, 5\)/);
+  assert.match(css, /fusion-source-actions/);
+});

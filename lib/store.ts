@@ -10,6 +10,7 @@ type VaultState = {
   ideas: Idea[];
   commandOpen: boolean;
   toggleSelected: (id: string) => void;
+  setSelectedIds: (ids: string[]) => void;
   clearSelected: () => void;
   setCommandOpen: (open: boolean) => void;
   hydrateIdeas: (records: StoredIdea[]) => void;
@@ -27,12 +28,22 @@ export const useVaultStore = create<VaultState>((set) => ({
   enabledProviders: { openrouter: true, nvidia: true, groq: true, gemini: true, cerebras: true },
   dismissedNotifications: [],
   commandOpen: false,
-  toggleSelected: (id) => set((state) => ({
-    selectedIds: state.selectedIds.includes(id)
+  toggleSelected: (id) => set((state) => {
+    const selectedIds = state.selectedIds.includes(id)
       ? state.selectedIds.filter((item) => item !== id)
-      : [...state.selectedIds, id],
-  })),
-  clearSelected: () => set({ selectedIds: [] }),
+      : state.selectedIds.length < 5 ? [...state.selectedIds, id] : state.selectedIds;
+    if (typeof localStorage !== "undefined") localStorage.setItem("vault-ai:selected", JSON.stringify(selectedIds));
+    return { selectedIds };
+  }),
+  setSelectedIds: (selectedIds) => {
+    const unique = [...new Set(selectedIds)].slice(0, 5);
+    if (typeof localStorage !== "undefined") localStorage.setItem("vault-ai:selected", JSON.stringify(unique));
+    set({ selectedIds: unique });
+  },
+  clearSelected: () => {
+    if (typeof localStorage !== "undefined") localStorage.removeItem("vault-ai:selected");
+    set({ selectedIds: [] });
+  },
   setCommandOpen: (commandOpen) => set({ commandOpen }),
   hydrateIdeas: (records) => set((state) => {
     const remote = records.filter((record) => !/^(QA capture \d+|FINAL QA \d+|QA unknown|Browser QA signal)$/.test(record.title)).map((record, index): Idea => ({
