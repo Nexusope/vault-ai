@@ -23,6 +23,9 @@ async function initializeSchema() {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS collections (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, description TEXT DEFAULT '' NOT NULL, color TEXT DEFAULT '#b6ff3b' NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS imports (id TEXT PRIMARY KEY NOT NULL, source TEXT NOT NULL, source_ref TEXT NOT NULL, state TEXT DEFAULT 'queued' NOT NULL, progress INTEGER DEFAULT 0 NOT NULL, error TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL, completed_at TEXT)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY NOT NULL, type TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, read INTEGER DEFAULT false NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS idea_review_actions (idea_id TEXT PRIMARY KEY NOT NULL, decision TEXT DEFAULT 'pending' NOT NULL, important INTEGER DEFAULT false NOT NULL, updated_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idea_review_decision_idx ON idea_review_actions (decision)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idea_review_important_idx ON idea_review_actions (important)"),
   ]);
   const info = await env.DB.prepare("PRAGMA table_info(ideas)").all<{ name: string }>();
   const columns = new Set((info.results || []).map((column) => column.name));

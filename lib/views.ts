@@ -1,6 +1,7 @@
 export const views = [
   "dashboard",
   "library",
+  "keep-clean",
   "galaxy",
   "fusion",
   "assistant",

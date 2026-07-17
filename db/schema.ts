@@ -48,3 +48,10 @@ export const notifications = sqliteTable("notifications", {
   read: integer("read", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const ideaReviewActions = sqliteTable("idea_review_actions", {
+  ideaId: text("idea_id").primaryKey(),
+  decision: text("decision").notNull().default("pending"),
+  important: integer("important", { mode: "boolean" }).notNull().default(false),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("idea_review_decision_idx").on(table.decision), index("idea_review_important_idx").on(table.important)]);

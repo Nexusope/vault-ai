@@ -4,12 +4,27 @@ import test from "node:test";
 const base = process.env.VAULT_BASE_URL || "http://localhost:3000";
 
 test("live routes and health respond", async () => {
-  for (const route of ["/", "/library", "/galaxy", "/fusion", "/assistant", "/search", "/collections", "/analytics", "/notifications", "/settings"]) {
+  for (const route of ["/", "/library", "/keep-clean", "/galaxy", "/fusion", "/assistant", "/search", "/collections", "/analytics", "/notifications", "/settings"]) {
     const response = await fetch(base + route); assert.equal(response.status, 200, route);
     const html = await response.text(); assert.match(html, /VAULT\/\/AI/, route);
   }
   const health = await fetch(base + "/api/health"); assert.equal(health.status, 200);
   assert.equal((await health.json()).service, "vault-ai");
+});
+
+test("Keep or Clean decisions and important marks persist", async () => {
+  const invalid = await fetch(base + "/api/review-actions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ideaId: "", decision: "delete", important: "yes" }) });
+  assert.equal(invalid.status, 400);
+  const ideaId = `qa-review-${Date.now()}`;
+  const kept = await fetch(base + "/api/review-actions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ideaId, decision: "keep", important: true }) });
+  assert.equal(kept.status, 200);
+  const keptAction = (await kept.json()).action;
+  assert.equal(keptAction.ideaId, ideaId); assert.equal(keptAction.decision, "keep"); assert.equal(keptAction.important, true);
+  const list = await fetch(base + "/api/review-actions");
+  assert.equal(list.status, 200);
+  assert.ok((await list.json()).actions.some((action) => action.ideaId === ideaId && action.decision === "keep" && action.important === true));
+  const restored = await fetch(base + "/api/review-actions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ideaId, decision: "pending", important: false }) });
+  assert.equal(restored.status, 200);
 });
 
 test("live API rejects invalid input and persists a valid idea", async () => {

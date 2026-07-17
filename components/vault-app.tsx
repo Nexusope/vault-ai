@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { IdeaGalaxyWorkspace } from "./galaxy";
+import { KeepOrCleanView } from "./keep-or-clean";
 import { activity, type Idea } from "../lib/data";
 import { galaxyContextForAI } from "../lib/galaxy";
 import { useVaultStore, type StoredIdea } from "../lib/store";
@@ -21,12 +22,13 @@ import type { ViewName } from "../lib/views";
 const nav: { name: ViewName; label: string; icon: typeof LayoutDashboard; hotkey: string }[] = [
   { name: "dashboard", label: "Control room", icon: LayoutDashboard, hotkey: "1" },
   { name: "library", label: "Idea library", icon: Library, hotkey: "2" },
-  { name: "galaxy", label: "Idea galaxy", icon: Atom, hotkey: "3" },
-  { name: "fusion", label: "Fusion lab", icon: WandSparkles, hotkey: "4" },
-  { name: "assistant", label: "AI operator", icon: Bot, hotkey: "5" },
-  { name: "search", label: "Deep search", icon: Search, hotkey: "6" },
-  { name: "collections", label: "Collections", icon: FolderKanban, hotkey: "7" },
-  { name: "analytics", label: "Intelligence", icon: TrendingUp, hotkey: "8" },
+  { name: "keep-clean", label: "Keep or clean", icon: Sparkles, hotkey: "3" },
+  { name: "galaxy", label: "Idea galaxy", icon: Atom, hotkey: "4" },
+  { name: "fusion", label: "Fusion lab", icon: WandSparkles, hotkey: "5" },
+  { name: "assistant", label: "AI operator", icon: Bot, hotkey: "6" },
+  { name: "search", label: "Deep search", icon: Search, hotkey: "7" },
+  { name: "collections", label: "Collections", icon: FolderKanban, hotkey: "8" },
+  { name: "analytics", label: "Intelligence", icon: TrendingUp, hotkey: "9" },
 ];
 
 const chartData = [
@@ -206,7 +208,7 @@ function CaptureModal({close}:{close:()=>void}){
   return <div className="modal-overlay" role="presentation" onMouseDown={close}><motion.form ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="capture-title" initial={{opacity:0,scale:.97}} animate={{opacity:1,scale:1}} onMouseDown={e=>e.stopPropagation()} onSubmit={submit}><div className="modal-head"><div><span>{"// NEW SIGNAL"}</span><h2 id="capture-title">Capture an idea.</h2></div><button type="button" aria-label="Close capture dialog" onClick={close}><X/></button></div><label>TITLE<input autoFocus required minLength={2} value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="What should you remember?"/></label><label>CONTENT SOURCE URL<input type="url" value={form.sourceUrl} onChange={e=>setForm({...form,sourceUrl:e.target.value})} placeholder="Instagram, TikTok, YouTube, X, Reddit, Pinterest, Threads or any website"/></label><label>POST COVER / SCREENSHOT<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={e=>setFile(e.target.files?.[0])}/><small>Optional. Vault will try to extract the post image automatically from its link.</small></label><label>HOOK / FIRST 3 SECONDS<input value={form.hook} onChange={e=>setForm({...form,hook:e.target.value})} placeholder="Optional—Vault extracts this from the post when available"/></label><label>CREATOR<input value={form.creator} onChange={e=>setForm({...form,creator:e.target.value})} placeholder="@creator"/></label><label>WHY I SAVED THIS<textarea value={form.summary} onChange={e=>setForm({...form,summary:e.target.value})} placeholder="The detail, format, or idea you want to reuse"/></label><div className="modal-actions"><span aria-live="polite">{status==='error'?'CAPTURE OR ENRICHMENT FAILED':status==='saved'?'POST SAVED + ENRICHED':status==='saving'?'EXTRACTING IMAGE + HOOK...':file?`${file.name} READY`:''}</span><button type="submit" className="primary-btn" disabled={status==='saving'}>{status==='saving'?'ENRICHING...':'SAVE POST'}<ChevronRight/></button></div></motion.form></div>;
 }
 
-const screens: Record<ViewName,()=>React.ReactNode>={dashboard:DashboardView,library:LibraryView,galaxy:GalaxyView,fusion:FusionView,assistant:AssistantView,search:SearchView,collections:CollectionsView,analytics:AnalyticsView,notifications:NotificationsView,settings:LiveSettingsView};
+const screens: Record<ViewName,()=>React.ReactNode>={dashboard:DashboardView,library:LibraryView,"keep-clean":KeepOrCleanView,galaxy:GalaxyView,fusion:FusionView,assistant:AssistantView,search:SearchView,collections:CollectionsView,analytics:AnalyticsView,notifications:NotificationsView,settings:LiveSettingsView};
 
 export function VaultApp({initialView}:{initialView:ViewName}) {
   const [mobileOpen,setMobileOpen]=useState(false); const [command,setCommand]=useState(false); const [commandQuery,setCommandQuery]=useState(''); const [captureOpen,setCaptureOpen]=useState(false); const Screen=screens[initialView]; const captureTrigger=useRef<HTMLButtonElement>(null); const commandTrigger=useRef<HTMLButtonElement>(null); const commandDialog=useRef<HTMLDivElement>(null); const hydrateIdeas=useVaultStore((state)=>state.hydrateIdeas); const dismissedNotifications=useVaultStore((state)=>state.dismissedNotifications); const dismissNotification=useVaultStore((state)=>state.dismissNotification);

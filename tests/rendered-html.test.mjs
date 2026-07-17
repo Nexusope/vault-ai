@@ -3,11 +3,12 @@ import { access, readFile, readdir, stat } from "node:fs/promises";
 import test from "node:test";
 
 test("finished Vault AI source replaces every starter surface", async () => {
-  const [page, component, layout, css] = await Promise.all([
+  const [page, component, layout, css, keepClean] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/vault-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../components/keep-or-clean.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(page, /VaultApp initialView="dashboard"/);
   assert.match(component, /CREATE FROM/);
@@ -18,15 +19,21 @@ test("finished Vault AI source replaces every starter surface", async () => {
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /Mark VII theme/);
   assert.match(css, /--chrome:#eef2f6/);
+  assert.match(keepClean, /drag=\{top && !saving \? "x" : false\}/);
+  assert.match(keepClean, /data-review-action="keep"/);
+  assert.match(keepClean, /data-review-action="clean"/);
+  assert.match(keepClean, /data-review-action="important"/);
+  assert.match(keepClean, /data-review-action="undo"/);
   assert.doesNotMatch(page + component + layout, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 
 test("API source validates before database or provider work", async () => {
-  const [ideas, ai, db, media] = await Promise.all([
+  const [ideas, ai, db, media, reviews] = await Promise.all([
     readFile(new URL("../app/api/ideas/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/ai/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/index.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/media/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/review-actions/route.ts", import.meta.url), "utf8"),
   ]);
   assert.match(ideas, /safeParse/); assert.match(ideas, /status: 400/); assert.match(ideas, /await ensureSchema/);
   assert.match(ideas, /nextOffset/); assert.match(ideas, /sourceFromUrl/);
@@ -34,7 +41,9 @@ test("API source validates before database or provider work", async () => {
   assert.match(ai, /safeParse/); assert.match(ai, /status: 400/); assert.match(ai, /routeAI/);
   assert.match(db, /CREATE TABLE IF NOT EXISTS ideas/); assert.match(db, /env\.DB\.batch/);
   assert.match(db, /PRAGMA table_info\(ideas\)/); assert.match(db, /thumbnail_url/);
+  assert.match(db, /CREATE TABLE IF NOT EXISTS idea_review_actions/);
   assert.match(media, /20 \* 1024 \* 1024/); assert.match(media, /Unsupported media type/); assert.match(media, /env as unknown as \{ MEDIA/);
+  assert.match(reviews, /safeParse/); assert.match(reviews, /onConflictDoUpdate/); assert.match(reviews, /important/);
 });
 
 test("ships complete blueprint, agents, skills, prompts, and project asset", async () => {
