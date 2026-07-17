@@ -30,7 +30,7 @@ const tones = ["Curiosity", "Contrarian", "Aspirational", "Reflective", "Urgent"
 const stories = ["Open loop", "Myth vs. reality", "Proof-first", "Personal confession", "Transformation", "Tutorial arc"];
 const edits = ["Single take", "Fast-cut montage", "Text-led", "Tactile macro", "Quiet cinematic", "Carousel rhythm"];
 const audiences = ["Startup founders", "Independent creators", "Design leaders", "Growth teams", "Curious builders", "Creative strategists"];
-const categoryColors = ["#b6ff3b", "#7bf1ff", "#ff6b2c", "#c792ff", "#ffd166", "#ff85a1", "#8fb6ff", "#80ffce"];
+const categoryColors = ["#ff2d31", "#dce5ee", "#a70e17", "#ff6a2b", "#9ba2ab", "#ff7477", "#c3cad2", "#7c838d"];
 
 function hash(input: string) {
   let value = 2166136261;

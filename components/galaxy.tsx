@@ -105,13 +105,13 @@ function GalaxyScene({ graph, activeIds, selectedId, hoveredId, onSelect, onHove
     <color attach="background" args={["#030603"]} />
     <fog attach="fog" args={["#030603", 8, 19]} />
     <ambientLight intensity={0.62} />
-    <pointLight position={[5, 5, 6]} intensity={34} color="#b6ff3b" />
-    <pointLight position={[-4, -1, 3]} intensity={18} color="#7bf1ff" />
-    <Sparkles count={260} size={1.25} scale={[16, 10, 10]} speed={0.2} opacity={0.45} color="#b6ff3b" />
+    <pointLight position={[5, 5, 6]} intensity={34} color="#ff2d31" />
+    <pointLight position={[-4, -1, 3]} intensity={18} color="#dce5ee" />
+    <Sparkles count={260} size={1.25} scale={[16, 10, 10]} speed={0.2} opacity={0.45} color="#ff2d31" />
     <group ref={group}>
       <EdgeLayer graph={graph} min={0.25} max={0.48} color="#30452b" width={0.55} opacity={0.28} />
       <EdgeLayer graph={graph} min={0.48} max={0.72} color="#6ca63e" width={1.15} opacity={0.48} />
-      <EdgeLayer graph={graph} min={0.72} max={1.01} color="#b6ff3b" width={2.2} opacity={0.72} />
+      <EdgeLayer graph={graph} min={0.72} max={1.01} color="#ff2d31" width={2.2} opacity={0.72} />
       <InstancedNodes graph={graph} activeIds={activeIds} selectedId={selectedId} onSelect={onSelect} onHover={onHover} />
       <SelectedBeacon node={selected} />
       {graph.clusters.slice(0, 10).map((cluster) => <Html key={cluster.name} position={cluster.center} center distanceFactor={12} style={{ pointerEvents: "none" }}><div className={styles.clusterLabel}><i style={{ background: cluster.color }} />{cluster.name.toUpperCase()} <small>{cluster.count}</small></div></Html>)}

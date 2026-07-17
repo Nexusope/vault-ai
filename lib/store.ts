@@ -54,7 +54,7 @@ export const useVaultStore = create<VaultState>((set) => ({
       tags: (() => { try { return JSON.parse(record.tags || "[]") as string[]; } catch { return []; } })(),
       trend: record.trendScore && record.trendScore > 0 ? Math.round(record.trendScore) : 50,
       saved: "now",
-      accent: ["#b6ff3b", "#7bf1ff", "#ff6b2c"][index % 3],
+      accent: ["#ff2d31", "#dce5ee", "#a70e17"][index % 3],
       insight: record.summary || "Captured signal awaiting enrichment.",
       sourceUrl: record.sourceUrl || undefined,
       transcript: record.transcript,

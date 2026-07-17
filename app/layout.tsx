@@ -7,14 +7,14 @@ export async function generateMetadata(): Promise<Metadata> {
   const host = incoming.get("host") ?? "localhost:3000";
   const protocol = incoming.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
   const base = new URL(`${protocol}://${host}`);
-  const image = new URL("/og-galaxy.png", base).toString();
+  const image = new URL("/og-armor.png", base).toString();
   return {
     metadataBase: base,
     title: { default: "VAULT//AI", template: "%s — VAULT//AI" },
     description: "The creative intelligence operating system for capturing, connecting, and compounding ideas.",
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
-    openGraph: { title: "VAULT//AI — Idea Galaxy", description: "Explore your creative mind as a living universe of intelligent, connected ideas.", images: [{ url: image, width: 1728, height: 960, alt: "VAULT//AI Idea Galaxy — Explore your creative mind." }] },
-    twitter: { card: "summary_large_image", title: "VAULT//AI — Idea Galaxy", description: "Explore your creative mind as a living universe of intelligent, connected ideas.", images: [image] },
+    openGraph: { title: "VAULT//AI — Creative Intelligence OS", description: "Capture, connect, and compound your best creative ideas.", images: [{ url: image, width: 1672, height: 941, alt: "VAULT//AI creative intelligence operating system." }] },
+    twitter: { card: "summary_large_image", title: "VAULT//AI — Creative Intelligence OS", description: "Capture, connect, and compound your best creative ideas.", images: [image] },
   };
 }
 
