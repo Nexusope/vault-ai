@@ -76,6 +76,7 @@ function IdeaCard({ idea, compact = false }: { idea: Idea; compact?: boolean }) 
         <span className="platform-chip">{platform.toUpperCase()}</span>
         {idea.duration && <span className="duration-chip">{idea.duration}</span>}
         <blockquote className="media-hook"><span>HOOK / FIRST 3 SECONDS</span><p>“{idea.hook || idea.title}”</p></blockquote>
+        {idea.sourceUrl && <a className="media-open" href={idea.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`Open original ${idea.title}`}><ExternalLink size={14}/><span>OPEN</span></a>}
       </div>
       <div className="card-body">
         <div className="creator-row"><span className="creator-avatar" aria-hidden="true">{initials || "VA"}</span><div><b>{creator}</b><span>{platform} · {savedWhen(idea.saved)}</span></div></div>
@@ -119,7 +120,7 @@ function LibraryView() {
   const ideas=useVaultStore((state)=>state.ideas); const searchParams=useSearchParams(); const [mode,setMode]=useState<"grid"|"list">("grid"); const [query,setQuery]=useState(searchParams.get('q')||''); const [source,setSource]=useState('ALL');
   const belongsTo=(idea:Idea,option:string)=>option==='ALL'||idea.platform?.toUpperCase()===option||idea.category.toUpperCase()===option;
   const filtered=ideas.filter(i=>belongsTo(i,source)&&(i.title+i.creator+i.tags.join(" ")+(i.hook||"")+(i.savedNote||"")).toLowerCase().includes(query.toLowerCase())).sort((a,b)=>Number(Boolean(ideaThumbnail(b)))-Number(Boolean(ideaThumbnail(a))));
-  return <><Header index="02" title="IDEA / LIBRARY" copy="Every save with its image, creator, opening hook, performance snapshot and the reason you kept it." />
+  return <><Header index="02" title="IDEA / LIBRARY" copy="Explore every save as a visual map. Open any tile for the original post, or switch to List for the full intelligence." />
     <div className="toolbar"><label><Search size={16}/><input aria-label="Search library" value={query} onChange={e=>setQuery(e.target.value)} placeholder="SEARCH HOOKS, CREATORS, NOTES..."/></label><div className="filter-pills">{['ALL','INSTAGRAM','TIKTOK','CAPTURED'].map(option=><button key={option} className={source===option?'active':''} onClick={()=>setSource(option)}>{option} {ideas.filter(idea=>belongsTo(idea,option)).length}</button>)}</div><div className="view-toggle"><button aria-label="Grid view" className={mode==='grid'?'active':''} onClick={()=>setMode('grid')}><Grid2X2 size={16}/></button><button aria-label="List view" className={mode==='list'?'active':''} onClick={()=>setMode('list')}><List size={16}/></button></div></div>
     <div className={mode==='grid'?"idea-grid four":"idea-list"}>{filtered.map(i=><IdeaCard idea={i} compact={mode==='list'} key={i.id}/>)}</div>
     {filtered.length===0&&<EmptyState title="NO MATCHING SIGNAL" copy="Try a broader phrase, creator, or semantic concept."/>}</>;

@@ -93,6 +93,7 @@ test("saved-post surfaces preserve media, creator, hook, and save-time context",
   ]);
   assert.match(component, /HOOK \/ FIRST 3 SECONDS/);
   assert.match(component, /media-hook/);
+  assert.match(component, /media-open/);
   assert.match(component, /WHY I SAVED THIS/);
   assert.match(component, /AT SAVE/);
   assert.match(component, /idea\.thumbnail/);
@@ -103,7 +104,8 @@ test("saved-post surfaces preserve media, creator, hook, and save-time context",
   assert.match(data, /thumbnail: "\/saves\/01-hook\.jpg"/);
   assert.match(data, /views: 218400/);
   assert.match(store, /QA capture/);
-  assert.match(css, /columns:3 270px/);
+  assert.match(css, /grid-auto-flow:dense/);
+  assert.match(css, /grid-column:span 2/);
   assert.match(css, /the post is the interface/);
   assert.equal(saves.filter((file) => file.endsWith(".jpg")).length, 6);
 });
