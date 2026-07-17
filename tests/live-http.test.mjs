@@ -60,6 +60,8 @@ test("Idea Galaxy server output exposes the living graph workspace", async () =>
   assert.match(html, /LIVING KNOWLEDGE UNIVERSE/);
   assert.match(html, /Semantic galaxy search/);
   assert.match(html, /FUSION DOCK/);
+  assert.match(html, /EXPLAINABLE RELATIONSHIPS/);
+  assert.match(html, /RELATIONSHIP MIX/);
 });
 
 test("private media route rejects unsafe object keys", async () => {

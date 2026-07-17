@@ -77,8 +77,9 @@ test("Idea Galaxy ships the complete scalable exploration architecture", async (
   for (const mode of ["GALAXY", "NETWORK", "TIMELINE", "KANBAN", "LIBRARY", "HEATMAP", "OPPORTUNITY", "FOCUS"]) assert.match(galaxy, new RegExp(`\\"${mode}\\"`));
   assert.match(galaxy, /instancedMesh/); assert.match(galaxy, /OrbitControls/); assert.match(galaxy, /Semantic galaxy search/);
   assert.match(galaxy, /galaxy-layout\.worker/); assert.match(galaxy, /FUSION DOCK/); assert.match(galaxy, /OPEN ORIGINAL SOURCE/);
-  assert.match(graph, /RelationshipKind/); assert.match(graph, /High Semantic Similarity/); assert.match(graph, /Frequently Viewed Together/); assert.match(graph, /embeddingVector/); assert.match(graph, /slice\(0, 12\)/); assert.match(graph, /galaxyContextForAI/);
-  assert.match(worker, /buildGalaxyGraph/); assert.match(css, /prefers-reduced-motion/);
+  assert.match(galaxy, /SelectedPathways/); assert.match(galaxy, /SignalPulse/); assert.match(galaxy, /ClusterOrbits/); assert.match(galaxy, /RELATIONSHIP MIX/); assert.match(galaxy, /EVIDENCE ON/);
+  assert.match(graph, /RelationshipKind/); assert.match(graph, /High Semantic Similarity/); assert.match(graph, /Frequently Viewed Together/); assert.match(graph, /embeddingVector/); assert.match(graph, /cosineSimilarity/); assert.match(graph, /evidence:/); assert.match(graph, /confidence:/); assert.match(graph, /slice\(0, 12\)/); assert.match(graph, /galaxyContextForAI/);
+  assert.match(worker, /buildGalaxyGraph/); assert.match(css, /prefers-reduced-motion/); assert.match(css, /Flagship Galaxy command deck/);
 });
 
 test("saved-post surfaces preserve media, creator, hook, and save-time context", async () => {

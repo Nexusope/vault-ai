@@ -22,7 +22,7 @@ export type GalaxyNode = Idea & {
   position: [number, number, number];
 };
 
-export type GalaxyEdge = { source: number; target: number; strength: number; type: RelationshipKind };
+export type GalaxyEdge = { source: number; target: number; strength: number; confidence: number; type: RelationshipKind; evidence: string };
 export type GalaxyCluster = { name: string; color: string; count: number; center: [number, number, number]; averageTrend: number };
 export type GalaxyGraph = { nodes: GalaxyNode[]; edges: GalaxyEdge[]; clusters: GalaxyCluster[] };
 
@@ -103,8 +103,15 @@ export function enrichIdeas(ideas: Idea[]): GalaxyNode[] {
   });
 }
 
-function relationship(a: GalaxyNode, b: GalaxyNode): { strength: number; type: RelationshipKind } {
-  const sharedKeywords = a.keywords.filter((keyword) => b.keywords.includes(keyword)).length;
+function cosineSimilarity(a: number[], b: number[]) {
+  let dot = 0; let lengthA = 0; let lengthB = 0;
+  for (let index = 0; index < Math.min(a.length, b.length); index += 1) { dot += a[index] * b[index]; lengthA += a[index] ** 2; lengthB += b[index] ** 2; }
+  return lengthA && lengthB ? Math.max(0, Math.min(1, (dot / Math.sqrt(lengthA * lengthB) + 1) / 2)) : 0;
+}
+
+function relationship(a: GalaxyNode, b: GalaxyNode): { strength: number; confidence: number; type: RelationshipKind; evidence: string } {
+  const shared = a.keywords.filter((keyword) => b.keywords.includes(keyword));
+  const sharedKeywords = shared.length;
   const sameCreator = a.creator !== "unknown" && a.creator === b.creator;
   const sameTopic = a.topic === b.topic;
   const sameAudience = a.audience === b.audience;
@@ -112,11 +119,15 @@ function relationship(a: GalaxyNode, b: GalaxyNode): { strength: number; type: R
   const sameEdit = a.editingStyle === b.editingStyle;
   const similarAudio = (a.topic === "Audio" || a.keywords.includes("audio")) && (b.topic === "Audio" || b.keywords.includes("audio"));
   const trendAffinity = 1 - Math.min(1, Math.abs(a.trend - b.trend) / 40);
-  let strength = sharedKeywords * 0.16 + (sameTopic ? 0.32 : 0) + (sameAudience ? 0.13 : 0) + (sameHook ? 0.12 : 0) + (sameEdit ? 0.09 : 0) + trendAffinity * 0.09;
-  if (sameCreator) strength = Math.max(strength, 0.94);
   const adjacent = Math.abs(a.savedOrder - b.savedOrder) === 1;
-  const type: RelationshipKind = sameCreator ? "Shared Creator" : sharedKeywords > 1 ? "High Semantic Similarity" : similarAudio ? "Similar Audio" : sameTopic && a.emotionalTone === "Contrarian" && b.emotionalTone !== "Contrarian" ? "Contradicts" : sameTopic ? "Similar Topic" : sameAudience ? "Similar Audience" : sameHook ? "Similar Hook" : sameEdit ? "Similar Editing Style" : adjacent ? "Frequently Viewed Together" : trendAffinity > 0.85 ? "Trending Together" : a.savedOrder > b.savedOrder ? "Inspired By" : "Complements";
-  return { strength: Math.min(0.99, strength), type };
+  const semanticSimilarity = cosineSimilarity(a.embeddingVector, b.embeddingVector);
+  let strength = sharedKeywords * 0.16 + (sameTopic ? 0.32 : 0) + (sameAudience ? 0.13 : 0) + (sameHook ? 0.12 : 0) + (sameEdit ? 0.09 : 0) + trendAffinity * 0.09 + semanticSimilarity * 0.18 + (adjacent ? 0.16 : 0);
+  if (sameCreator) strength = Math.max(strength, 0.94);
+  strength = Math.min(0.99, strength);
+  const type: RelationshipKind = sameCreator ? "Shared Creator" : sharedKeywords > 1 || semanticSimilarity > 0.77 ? "High Semantic Similarity" : similarAudio ? "Similar Audio" : sameTopic && a.emotionalTone === "Contrarian" && b.emotionalTone !== "Contrarian" ? "Contradicts" : sameTopic ? "Similar Topic" : sameAudience ? "Similar Audience" : sameHook ? "Similar Hook" : sameEdit ? "Similar Editing Style" : adjacent ? "Frequently Viewed Together" : trendAffinity > 0.85 ? "Trending Together" : a.savedOrder > b.savedOrder ? "Inspired By" : "Complements";
+  const evidence = sameCreator ? `Both saved from ${a.creator}` : shared.length ? `Shared signals: ${shared.slice(0, 3).join(", ")}` : sameTopic ? `Both belong to ${a.topic}` : sameAudience ? `Both target ${a.audience}` : sameHook ? `Both use a ${a.storytellingStyle.toLowerCase()} structure` : sameEdit ? `Both use ${a.editingStyle.toLowerCase()} editing` : adjacent ? "Captured next to each other in your save history" : `Trend patterns move with ${Math.round(trendAffinity * 100)}% affinity`;
+  const confidence = Math.min(0.99, 0.68 + strength * 0.27 + (sharedKeywords ? 0.03 : 0));
+  return { strength, confidence, type, evidence };
 }
 
 export function buildGalaxyGraph(ideas: Idea[]): GalaxyGraph {
@@ -140,7 +151,7 @@ export function buildGalaxyGraph(ideas: Idea[]): GalaxyGraph {
       .slice(0, 12)
       .forEach((edge) => {
         const key = index < edge.candidate ? `${index}:${edge.candidate}` : `${edge.candidate}:${index}`;
-        if (!seen.has(key)) { seen.add(key); edges.push({ source: index, target: edge.candidate, strength: edge.strength, type: edge.type }); }
+        if (!seen.has(key)) { seen.add(key); edges.push({ source: index, target: edge.candidate, strength: edge.strength, confidence: edge.confidence, type: edge.type, evidence: edge.evidence }); }
       });
   });
   const attraction = nodes.map(() => [0, 0, 0] as [number, number, number]);
@@ -186,6 +197,6 @@ export function relationshipLabel(graph: GalaxyGraph, sourceId: string, targetId
 export function galaxyContextForAI(ideas: Idea[]) {
   const graph = buildGalaxyGraph(ideas.slice(0, 240));
   const nodes = graph.nodes.slice(0, 16).map((node) => ({ id: node.id, title: node.title, topic: node.topic, creator: node.creator, tags: node.tags, tone: node.emotionalTone, hook: node.storytellingStyle, audience: node.audience, trend: node.trend }));
-  const relationships = graph.edges.slice(0, 24).map((edge) => ({ from: graph.nodes[edge.source].title, to: graph.nodes[edge.target].title, type: edge.type, strength: Math.round(edge.strength * 100) }));
+  const relationships = graph.edges.slice(0, 24).map((edge) => ({ from: graph.nodes[edge.source].title, to: graph.nodes[edge.target].title, type: edge.type, strength: Math.round(edge.strength * 100), confidence: Math.round(edge.confidence * 100), evidence: edge.evidence }));
   return JSON.stringify({ nodeCount: ideas.length, clusterCount: graph.clusters.length, nodes, relationships });
 }

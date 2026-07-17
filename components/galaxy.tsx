@@ -5,7 +5,7 @@ import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Html, Line, OrbitControls, Sparkles } from "@react-three/drei";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Color, Object3D, type Group, type InstancedMesh } from "three";
+import { AdditiveBlending, Color, Object3D, Vector3, type Group, type InstancedMesh, type Mesh } from "three";
 import {
   Atom, Boxes, BrainCircuit, CalendarRange, Check, ChevronRight, CircleDot,
   Clock3, ExternalLink, Flame, Focus, Grid2X2, Heart, KanbanSquare,
@@ -48,8 +48,9 @@ function EdgeLayer({ graph, min, max, color, width, opacity }: { graph: GalaxyGr
 
 function InstancedNodes({ graph, activeIds, selectedId, onSelect, onHover }: { graph: GalaxyGraph; activeIds: Set<string>; selectedId?: string; onSelect: (id: string) => void; onHover: (id?: string) => void }) {
   const ref = useRef<InstancedMesh>(null);
+  const haloRef = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
-  const dim = useMemo(() => new Color("#182018"), []);
+  const dim = useMemo(() => new Color("#16181c"), []);
 
   useLayoutEffect(() => {
     if (!ref.current) return;
@@ -60,17 +61,27 @@ function InstancedNodes({ graph, activeIds, selectedId, onSelect, onHover }: { g
       dummy.scale.setScalar(scale);
       dummy.updateMatrix();
       ref.current?.setMatrixAt(index, dummy.matrix);
+      dummy.scale.setScalar(scale * 1.72);
+      dummy.updateMatrix();
+      haloRef.current?.setMatrixAt(index, dummy.matrix);
       const color = new Color(node.accent);
       if (!active) color.lerp(dim, 0.86);
       if (node.id === selectedId) color.lerp(new Color("#ffffff"), 0.24);
       ref.current?.setColorAt(index, color);
+      haloRef.current?.setColorAt(index, color);
     });
     ref.current.instanceMatrix.needsUpdate = true;
     if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
+    if (haloRef.current) haloRef.current.instanceMatrix.needsUpdate = true;
+    if (haloRef.current?.instanceColor) haloRef.current.instanceColor.needsUpdate = true;
   }, [activeIds, dim, dummy, graph, selectedId]);
 
   const idForEvent = (event: ThreeEvent<PointerEvent>) => event.instanceId === undefined ? undefined : graph.nodes[event.instanceId]?.id;
-  return (
+  return <group>
+    <instancedMesh ref={haloRef} args={[undefined, undefined, Math.max(1, graph.nodes.length)]}>
+      <icosahedronGeometry args={[0.76, 1]} />
+      <meshBasicMaterial vertexColors wireframe transparent opacity={0.16} depthWrite={false} blending={AdditiveBlending} />
+    </instancedMesh>
     <instancedMesh
       ref={ref}
       args={[undefined, undefined, Math.max(1, graph.nodes.length)]}
@@ -78,10 +89,34 @@ function InstancedNodes({ graph, activeIds, selectedId, onSelect, onHover }: { g
       onPointerOut={() => onHover(undefined)}
       onClick={(event) => { const id = idForEvent(event); if (id) { event.stopPropagation(); onSelect(id); } }}
     >
-      <icosahedronGeometry args={[0.72, 1]} />
-      <meshStandardMaterial vertexColors roughness={0.22} metalness={0.18} emissive="#13200c" emissiveIntensity={0.75} />
+      <sphereGeometry args={[0.62, 12, 12]} />
+      <meshStandardMaterial vertexColors roughness={0.16} metalness={0.82} emissive="#240307" emissiveIntensity={1.1} />
     </instancedMesh>
-  );
+  </group>;
+}
+
+function SignalPulse({ from, to, color, offset }: { from: [number, number, number]; to: [number, number, number]; color: string; offset: number }) {
+  const ref = useRef<Mesh>(null);
+  const start = useMemo(() => new Vector3(...from), [from]);
+  const end = useMemo(() => new Vector3(...to), [to]);
+  useFrame(({ clock }) => { if (ref.current) ref.current.position.lerpVectors(start, end, (clock.elapsedTime * 0.18 + offset) % 1); });
+  return <mesh ref={ref}><sphereGeometry args={[0.045, 8, 8]} /><meshBasicMaterial color={color} transparent opacity={0.95} blending={AdditiveBlending} /></mesh>;
+}
+
+function SelectedPathways({ graph, selectedId }: { graph: GalaxyGraph; selectedId?: string }) {
+  if (!selectedId) return null;
+  const selectedIndex = graph.nodes.findIndex((node) => node.id === selectedId);
+  const connected = graph.edges.filter((edge) => edge.source === selectedIndex || edge.target === selectedIndex).sort((a, b) => b.strength - a.strength).slice(0, 8);
+  return <group>{connected.map((edge, index) => { const targetIndex = edge.source === selectedIndex ? edge.target : edge.source; const target = graph.nodes[targetIndex]; const from = graph.nodes[selectedIndex].position; const to = target.position; return <group key={`${edge.source}-${edge.target}`}><Line points={[from, to]} color={target.accent} lineWidth={1.6 + edge.strength * 2.4} transparent opacity={0.72} depthWrite={false}/>{index < 4 && <SignalPulse from={from} to={to} color={target.accent} offset={index / 4}/>}</group>; })}</group>;
+}
+
+function ClusterOrbits({ graph }: { graph: GalaxyGraph }) {
+  return <group>{graph.clusters.slice(0, 12).map((cluster, index) => { const radius = 0.7 + Math.min(cluster.count, 12) * 0.055; const points = Array.from({ length: 49 }, (_, point) => { const angle = point / 48 * Math.PI * 2; return [cluster.center[0] + Math.cos(angle) * radius, cluster.center[1] + Math.sin(angle) * radius * 0.58, cluster.center[2]] as [number, number, number]; }); return <Line key={cluster.name} points={points} color={cluster.color} lineWidth={index % 2 ? .45 : .7} transparent opacity={0.16} depthWrite={false}/>; })}</group>;
+}
+
+function PriorityLabels({ graph, activeIds, selectedId }: { graph: GalaxyGraph; activeIds: Set<string>; selectedId?: string }) {
+  const visible = [...graph.nodes].filter((node) => activeIds.has(node.id) && node.id !== selectedId).sort((a, b) => b.importance - a.importance).slice(0, 8);
+  return <>{visible.map((node) => <Html key={node.id} position={[node.position[0], node.position[1] + .42, node.position[2]]} center distanceFactor={11} style={{ pointerEvents: "none" }}><div className={styles.priorityLabel}><i style={{ background: node.accent }}/><span>{node.title}</span><b>{node.trend}</b></div></Html>)}</>;
 }
 
 function SelectedBeacon({ node }: { node?: GalaxyNode }) {
@@ -97,33 +132,37 @@ function SelectedBeacon({ node }: { node?: GalaxyNode }) {
   </group>;
 }
 
-function GalaxyScene({ graph, activeIds, selectedId, hoveredId, onSelect, onHover }: { graph: GalaxyGraph; activeIds: Set<string>; selectedId?: string; hoveredId?: string; onSelect: (id: string) => void; onHover: (id?: string) => void }) {
+function GalaxyScene({ graph, activeIds, selectedId, hoveredId, motionEnabled, onSelect, onHover }: { graph: GalaxyGraph; activeIds: Set<string>; selectedId?: string; hoveredId?: string; motionEnabled: boolean; onSelect: (id: string) => void; onHover: (id?: string) => void }) {
   const group = useRef<Group>(null);
   const selected = graph.nodes.find((node) => node.id === (hoveredId || selectedId));
-  useFrame(({ clock }) => { if (group.current) group.current.position.y = Math.sin(clock.elapsedTime * 0.25) * 0.08; });
+  useFrame(({ clock }) => { if (group.current) group.current.position.y = motionEnabled ? Math.sin(clock.elapsedTime * 0.25) * 0.08 : 0; });
   return <>
     <color attach="background" args={["#030603"]} />
-    <fog attach="fog" args={["#030603", 8, 19]} />
-    <ambientLight intensity={0.62} />
-    <pointLight position={[5, 5, 6]} intensity={34} color="#ff2d31" />
-    <pointLight position={[-4, -1, 3]} intensity={18} color="#dce5ee" />
-    <Sparkles count={260} size={1.25} scale={[16, 10, 10]} speed={0.2} opacity={0.45} color="#ff2d31" />
+    <fog attach="fog" args={["#020203", 9, 21]} />
+    <ambientLight intensity={0.46} />
+    <pointLight position={[5, 5, 6]} intensity={42} color="#ff2d31" />
+    <pointLight position={[-4, -1, 3]} intensity={24} color="#dce5ee" />
+    <Sparkles count={320} size={1.15} scale={[17, 11, 11]} speed={motionEnabled ? 0.18 : 0} opacity={0.52} color="#ff2d31" />
+    <Sparkles count={120} size={.72} scale={[13, 8, 8]} speed={motionEnabled ? 0.1 : 0} opacity={0.34} color="#eef2f6" />
     <group ref={group}>
-      <EdgeLayer graph={graph} min={0.25} max={0.48} color="#30452b" width={0.55} opacity={0.28} />
-      <EdgeLayer graph={graph} min={0.48} max={0.72} color="#6ca63e" width={1.15} opacity={0.48} />
-      <EdgeLayer graph={graph} min={0.72} max={1.01} color="#ff2d31" width={2.2} opacity={0.72} />
+      <ClusterOrbits graph={graph}/>
+      <EdgeLayer graph={graph} min={0.25} max={0.48} color="#3c4148" width={0.48} opacity={0.24} />
+      <EdgeLayer graph={graph} min={0.48} max={0.72} color="#9ba2ab" width={0.9} opacity={0.38} />
+      <EdgeLayer graph={graph} min={0.72} max={1.01} color="#ff2d31" width={1.8} opacity={0.62} />
+      <SelectedPathways graph={graph} selectedId={selectedId}/>
       <InstancedNodes graph={graph} activeIds={activeIds} selectedId={selectedId} onSelect={onSelect} onHover={onHover} />
       <SelectedBeacon node={selected} />
+      <PriorityLabels graph={graph} activeIds={activeIds} selectedId={selectedId}/>
       {graph.clusters.slice(0, 10).map((cluster) => <Html key={cluster.name} position={cluster.center} center distanceFactor={12} style={{ pointerEvents: "none" }}><div className={styles.clusterLabel}><i style={{ background: cluster.color }} />{cluster.name.toUpperCase()} <small>{cluster.count}</small></div></Html>)}
     </group>
-    <OrbitControls makeDefault enableDamping dampingFactor={0.08} enablePan enableZoom minDistance={4.2} maxDistance={17} autoRotate={!selected} autoRotateSpeed={0.18} />
+    <OrbitControls makeDefault enableDamping dampingFactor={0.075} enablePan enableZoom minDistance={3.8} maxDistance={18} autoRotate={motionEnabled} autoRotateSpeed={0.22} target={selected?.position || [0, 0, 0]} />
   </>;
 }
 
-function GalaxyCanvas({ graph, activeIds, selectedId, hoveredId, onSelect, onHover }: { graph: GalaxyGraph; activeIds: Set<string>; selectedId?: string; hoveredId?: string; onSelect: (id: string) => void; onHover: (id?: string) => void }) {
+function GalaxyCanvas({ graph, activeIds, selectedId, hoveredId, motionEnabled, onSelect, onHover }: { graph: GalaxyGraph; activeIds: Set<string>; selectedId?: string; hoveredId?: string; motionEnabled: boolean; onSelect: (id: string) => void; onHover: (id?: string) => void }) {
   return <div className={styles.canvas} role="img" aria-label={`Interactive 3D galaxy containing ${graph.nodes.length} intelligent ideas across ${graph.clusters.length} clusters`}>
     <Canvas camera={{ position: [0, 0.2, 9.5], fov: 48 }} dpr={[1, 1.55]} gl={{ antialias: true, powerPreference: "high-performance" }}>
-      <GalaxyScene graph={graph} activeIds={activeIds} selectedId={selectedId} hoveredId={hoveredId} onSelect={onSelect} onHover={onHover} />
+      <GalaxyScene graph={graph} activeIds={activeIds} selectedId={selectedId} hoveredId={hoveredId} motionEnabled={motionEnabled} onSelect={onSelect} onHover={onHover} />
     </Canvas>
   </div>;
 }
@@ -178,7 +217,7 @@ function OpportunityView({ graph, onFocus }: { graph: GalaxyGraph; onFocus: (id:
 function FocusView({ graph, selected, onSelect }: { graph: GalaxyGraph; selected?: GalaxyNode; onSelect: (id: string) => void }) {
   if (!selected) return <div className={styles.empty}>Select an idea to enter focus mode.</div>;
   const related = graph.edges.filter((edge) => graph.nodes[edge.source].id === selected.id || graph.nodes[edge.target].id === selected.id).sort((a, b) => b.strength - a.strength);
-  return <div className={styles.focusView}><div className={styles.focusCore} style={{ "--node": selected.accent } as React.CSSProperties}><i /><PlatformMark platform={selected.platform} /><BrainCircuit /><small>FOCUS SIGNAL</small><h2>{selected.title}</h2><p>{selected.insight}</p><strong>{selected.confidence}% AI CONFIDENCE</strong></div><div className={styles.focusRelations}>{related.map((edge) => { const node = graph.nodes[edge.source].id === selected.id ? graph.nodes[edge.target] : graph.nodes[edge.source]; return <button key={`${edge.source}-${edge.target}`} onClick={() => onSelect(node.id)}><i style={{ background: node.accent }} /><div><small>{edge.type} · {Math.round(edge.strength * 100)}%</small><b>{node.title}</b></div><ChevronRight /></button>; })}</div></div>;
+  return <div className={styles.focusView}><div className={styles.focusCore} style={{ "--node": selected.accent } as React.CSSProperties}><i /><PlatformMark platform={selected.platform} /><BrainCircuit /><small>FOCUS SIGNAL</small><h2>{selected.title}</h2><p>{selected.insight}</p><strong>{selected.confidence}% AI CONFIDENCE</strong></div><div className={styles.focusRelations}>{related.map((edge) => { const node = graph.nodes[edge.source].id === selected.id ? graph.nodes[edge.target] : graph.nodes[edge.source]; return <button key={`${edge.source}-${edge.target}`} onClick={() => onSelect(node.id)}><i style={{ background: node.accent }} /><div><small>{edge.type} · {Math.round(edge.strength * 100)}% STRENGTH · {Math.round(edge.confidence * 100)}% CONFIDENCE</small><b>{node.title}</b><span>{edge.evidence}</span></div><ChevronRight /></button>; })}</div></div>;
 }
 
 function Inspector({ graph, node, selectedForFusion, onClose, onSelect, onToggleFusion }: { graph: GalaxyGraph; node?: GalaxyNode; selectedForFusion: boolean; onClose: () => void; onSelect: (id: string) => void; onToggleFusion: () => void }) {
@@ -191,7 +230,7 @@ function Inspector({ graph, node, selectedForFusion, onClose, onSelect, onToggle
       <div className={styles.scoreStrip}><div><span>TREND</span><b>{node.trend}</b></div><div><span>VIRALITY</span><b>{node.virality}</b></div><div><span>CONFIDENCE</span><b>{node.confidence}%</b></div></div>
       <dl><dt>EMOTIONAL TONE</dt><dd>{node.emotionalTone}</dd><dt>HOOK ANALYSIS</dt><dd>{node.hookAnalysis}</dd><dt>AUDIENCE</dt><dd>{node.audience}</dd><dt>EDITING / STORY</dt><dd>{node.editingStyle} · {node.storytellingStyle}</dd>{node.transcript&&<><dt>TRANSCRIPT</dt><dd>{node.transcript.slice(0,260)}{node.transcript.length>260?'…':''}</dd></>}</dl>
       <div className={styles.keywordRow}>{node.favorite&&<span>♥ FAVORITE</span>}{node.collections.map((collection)=><span key={`collection-${collection}`}>COLLECTION / {collection}</span>)}{node.keywords.slice(0, 6).map((keyword) => <span key={keyword}>#{keyword}</span>)}</div>
-      <section className={styles.related}><span>RELATED IDEAS / {relatedEdges.length}</span>{relatedEdges.map((edge) => { const related = graph.nodes[edge.source].id === node.id ? graph.nodes[edge.target] : graph.nodes[edge.source]; return <button key={`${edge.source}-${edge.target}`} onClick={() => onSelect(related.id)}><i style={{ background: related.accent }} /><div><b>{related.title}</b><small>{edge.type} · {Math.round(edge.strength * 100)}%</small></div><ChevronRight /></button>; })}</section>
+      <section className={styles.related}><span>EXPLAINABLE PATHWAYS / {relatedEdges.length}</span>{relatedEdges.map((edge) => { const related = graph.nodes[edge.source].id === node.id ? graph.nodes[edge.target] : graph.nodes[edge.source]; return <button key={`${edge.source}-${edge.target}`} onClick={() => onSelect(related.id)}><i style={{ background: related.accent }} /><div><b>{related.title}</b><small>{edge.type} · {Math.round(edge.strength * 100)}% STRENGTH · {Math.round(edge.confidence * 100)}% CONF.</small><em>{edge.evidence}</em></div><ChevronRight /></button>; })}</section>
       <button className={`${styles.fusionButton} ${selectedForFusion ? styles.selectedFusion : ""}`} onClick={onToggleFusion}>{selectedForFusion ? <Check /> : <Plus />}{selectedForFusion ? "ADDED TO FUSION" : "ADD TO FUSION"}</button>
       {node.sourceUrl && <a className={styles.sourceButton} href={node.sourceUrl} target="_blank" rel="noopener noreferrer">OPEN ORIGINAL SOURCE <ExternalLink /></a>}
     </div>
@@ -204,9 +243,11 @@ export function IdeaGalaxyWorkspace({ ideas }: { ideas: Idea[] }) {
   const [query, setQuery] = useState("");
   const [trendFilter, setTrendFilter] = useState<TrendFilter>("ALL SIGNALS");
   const [timeline, setTimeline] = useState(100);
-  const [selectedId, setSelectedId] = useState<string>(() => graph.nodes[0]?.id || "");
+  const [selectedId, setSelectedId] = useState<string>();
   const [hoveredId, setHoveredId] = useState<string>();
   const [clusterFilter, setClusterFilter] = useState<string>();
+  const [motionEnabled, setMotionEnabled] = useState(true);
+  const [cameraKey, setCameraKey] = useState(0);
   const selectedIds = useVaultStore((state) => state.selectedIds);
   const toggleSelected = useVaultStore((state) => state.toggleSelected);
 
@@ -218,6 +259,7 @@ export function IdeaGalaxyWorkspace({ ideas }: { ideas: Idea[] }) {
     worker.postMessage(ideas);
     return () => worker.terminate();
   }, [ideas]);
+  useEffect(() => { const media = window.matchMedia("(prefers-reduced-motion: reduce)"); const sync = () => setMotionEnabled(!media.matches); sync(); media.addEventListener("change", sync); return () => media.removeEventListener("change", sync); }, []);
   const activeIds = useMemo(() => new Set(graph.nodes.filter((node) => {
     const semantic = !query.trim() || semanticScore(node, query) >= 0.5;
     const time = node.savedOrder <= Math.ceil((timeline / 100) * Math.max(graph.nodes.length - 1, 0));
@@ -225,12 +267,33 @@ export function IdeaGalaxyWorkspace({ ideas }: { ideas: Idea[] }) {
     const trend = trendFilter === "ALL SIGNALS" || (trendFilter === "RISING" && node.trend >= 85) || (trendFilter === "EVERGREEN" && node.trend >= 70 && node.trend < 90) || (trendFilter === "VIRAL" && node.virality >= 84) || (trendFilter === "LOW COMPETITION" && node.trend >= 65 && node.importance < 82) || (trendFilter === "HIGH OPPORTUNITY" && node.confidence >= 82 && node.trend < 88);
     return semantic && time && cluster && trend;
   }).map((node) => node.id)), [clusterFilter, graph.nodes, query, timeline, trendFilter]);
+  const activeNodes = useMemo(() => graph.nodes.filter((node) => activeIds.has(node.id)), [activeIds, graph.nodes]);
   const selected = graph.nodes.find((node) => node.id === selectedId);
   const hovered = graph.nodes.find((node) => node.id === hoveredId);
   const strongestCluster = [...graph.clusters].sort((a, b) => b.averageTrend - a.averageTrend)[0];
   const overlapEdge = [...graph.edges].sort((a, b) => b.strength - a.strength)[0];
   const overlapA = overlapEdge ? graph.nodes[overlapEdge.source] : undefined;
   const overlapB = overlapEdge ? graph.nodes[overlapEdge.target] : undefined;
+  const density = graph.nodes.length ? (graph.edges.length / graph.nodes.length).toFixed(1) : "0.0";
+  const relationshipMix = useMemo(() => Object.entries(graph.edges.reduce<Record<string, number>>((counts, edge) => ({ ...counts, [edge.type]: (counts[edge.type] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1]).slice(0, 3), [graph.edges]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.matches("input, textarea, select, button, a") || target.isContentEditable || mode !== "GALAXY") return;
+      if (event.key === "Escape") { setSelectedId(undefined); setHoveredId(undefined); return; }
+      if (event.key.toLowerCase() === "r") { setCameraKey((value) => value + 1); return; }
+      if (event.key.toLowerCase() === "f" && selectedId) { setMode("FOCUS"); return; }
+      if (!["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(event.key) || !activeNodes.length) return;
+      event.preventDefault();
+      const current = activeNodes.findIndex((node) => node.id === selectedId);
+      const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+      const next = (current + direction + activeNodes.length) % activeNodes.length;
+      setSelectedId(activeNodes[next].id); setHoveredId(undefined);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activeNodes, mode, selectedId]);
 
   const select = (id: string) => { setSelectedId(id); setHoveredId(undefined); };
   const selectCluster = (cluster: string) => { setClusterFilter(cluster); setMode("GALAXY"); };
@@ -238,15 +301,19 @@ export function IdeaGalaxyWorkspace({ ideas }: { ideas: Idea[] }) {
   const dropFusion = (event: React.DragEvent) => { event.preventDefault(); const id = event.dataTransfer.getData("text/idea-id"); if (id && !selectedIds.includes(id)) toggleSelected(id); };
 
   const content = mode === "GALAXY" ? <div className={styles.galaxyStage}>
-    <GalaxyCanvas graph={graph} activeIds={activeIds} selectedId={selectedId} hoveredId={hoveredId} onSelect={select} onHover={setHoveredId} />
-    <div className={styles.liveHud}><span><i /> LIVE GRAPH</span><b>{graph.nodes.length.toLocaleString()} NODES</b><small>{graph.edges.length.toLocaleString()} AI RELATIONSHIPS</small></div>
-    <div className={styles.controlHud}><small>DRAG TO ORBIT · SCROLL TO ZOOM</small><small>CLICK A NODE TO INSPECT</small></div>
+    <GalaxyCanvas key={cameraKey} graph={graph} activeIds={activeIds} selectedId={selectedId} hoveredId={hoveredId} motionEnabled={motionEnabled} onSelect={select} onHover={setHoveredId} />
+    <div className={styles.liveHud}><span><i /> LIVE GRAPH / EVIDENCE ON</span><b>{activeIds.size.toLocaleString()} / {graph.nodes.length.toLocaleString()} ACTIVE</b><small>{graph.edges.length.toLocaleString()} EXPLAINABLE RELATIONSHIPS</small></div>
+    <div className={styles.graphTools} aria-label="Galaxy camera controls"><button onClick={() => { setCameraKey((value) => value + 1); setSelectedId(undefined); }}><CircleDot/>RESET VIEW <kbd>R</kbd></button><button aria-pressed={motionEnabled} onClick={() => setMotionEnabled((value) => !value)}><Orbit/>{motionEnabled ? "PAUSE ORBIT" : "AUTO ORBIT"}</button><button onClick={() => setMode("NETWORK")}><Network/>2D MAP</button></div>
+    <div className={styles.clusterRail} aria-label="Galaxy clusters">{graph.clusters.slice(0, 7).map((cluster) => <button key={cluster.name} aria-pressed={clusterFilter === cluster.name} onClick={() => setClusterFilter(clusterFilter === cluster.name ? undefined : cluster.name)}><i style={{ background: cluster.color }}/><span>{cluster.name}</span><b>{cluster.count}</b></button>)}</div>
+    <div className={styles.relationshipLegend}><span>RELATIONSHIP MIX</span>{relationshipMix.map(([type, count], index) => <div key={type}><i className={index === 0 ? styles.strongLine : index === 1 ? styles.mediumLine : styles.softLine}/><b>{type}</b><small>{count}</small></div>)}</div>
+    <div className={styles.controlHud}><small>DRAG TO ORBIT · SCROLL TO ZOOM</small><small>ARROWS BROWSE · F FOCUSES · ESC CLEARS</small></div>
     {strongestCluster && <button className={styles.opportunityBeacon} onClick={() => { const node = graph.nodes.find((item) => item.topic === strongestCluster.name); if (node) select(node.id); setMode("OPPORTUNITY"); }}><SparklesIcon /><span>OPPORTUNITY DETECTED</span><b>{strongestCluster.name} is accelerating</b></button>}
     {hovered && <div className={styles.hoverCard}><PlatformMark platform={hovered.platform} /><div><small>{hovered.creator} · SAVED {hovered.saved.toUpperCase()} AGO · {hovered.emotionalTone}</small><b>{hovered.title}</b><p>{hovered.insight}</p><em>{hovered.hookAnalysis}</em><span>↑{hovered.trend} TREND · {graph.edges.filter((edge) => graph.nodes[edge.source].id === hovered.id || graph.nodes[edge.target].id === hovered.id).length} RELATED</span></div></div>}
+    {activeIds.size === 0 && <div className={styles.noResults}><Search/><b>NO SIGNALS MATCH THIS LENS</b><button onClick={() => { setQuery(""); setTrendFilter("ALL SIGNALS"); setClusterFilter(undefined); setTimeline(100); }}>RESET FILTERS</button></div>}
   </div> : mode === "NETWORK" ? <NetworkView graph={graph} activeIds={activeIds} selectedId={selectedId} onSelect={select} /> : mode === "TIMELINE" ? <TimelineView nodes={graph.nodes} activeIds={activeIds} selectedId={selectedId} onSelect={select} onDrag={dragIdea} /> : mode === "KANBAN" ? <KanbanView graph={graph} activeIds={activeIds} selectedId={selectedId} onSelect={select} onDrag={dragIdea} /> : mode === "LIBRARY" ? <LibraryGalaxyView nodes={graph.nodes} activeIds={activeIds} selectedId={selectedId} onSelect={select} onDrag={dragIdea} /> : mode === "HEATMAP" ? <HeatmapView graph={graph} onSelectCluster={selectCluster} /> : mode === "OPPORTUNITY" ? <OpportunityView graph={graph} onFocus={(id) => { select(id); setMode("FOCUS"); }} /> : <FocusView graph={graph} selected={selected} onSelect={select} />;
 
   return <section className={styles.workspace}>
-    <header className={styles.hero}><div><span><i /> LIVING KNOWLEDGE UNIVERSE / INDEX ONLINE</span><h1>IDEA / <em>GALAXY</em></h1><p>Fly through your creative mind. Discover relationships, hidden opportunities, and the next idea worth making.</p></div><div className={styles.heroMetrics}><div><b>{graph.nodes.length.toLocaleString()}</b><span>INTELLIGENT NODES</span></div><div><b>{graph.edges.length.toLocaleString()}</b><span>RELATIONSHIPS</span></div><div><b>{graph.clusters.length}</b><span>LIVE CLUSTERS</span></div></div></header>
+    <header className={styles.hero}><div><span><i /> LIVING KNOWLEDGE UNIVERSE / INDEX ONLINE</span><h1>IDEA / <em>GALAXY</em></h1><p>Navigate your creative memory as an explainable universe. Every pathway shows why two ideas belong together—and where the next opportunity is forming.</p></div><div className={styles.heroMetrics}><div><b>{graph.nodes.length.toLocaleString()}</b><span>INTELLIGENT NODES</span></div><div><b>{graph.edges.length.toLocaleString()}</b><span>RELATIONSHIPS</span></div><div><b>{graph.clusters.length}</b><span>LIVE CLUSTERS</span></div><div><b>{density}</b><span>LINKS / NODE</span></div></div></header>
     <div className={styles.discovery}><BrainCircuit /><div><small>AI DISCOVERY / NOW</small><p>{overlapA && overlapB ? <><b>{overlapA.topic}</b> and <b>{overlapB.topic}</b> frequently overlap through {overlapEdge.type.toLowerCase()}. Suggested direction: <strong>{overlapA.topic} for {overlapB.audience}</strong>.</> : <>Your graph is learning from every saved signal.</>}</p></div><button onClick={() => setMode("OPPORTUNITY")}>EXPLORE INSIGHT <ChevronRight /></button></div>
     <div className={styles.modeBar} role="tablist" aria-label="Galaxy view modes">{modes.map(({ id, label, icon: Icon }) => <button role="tab" aria-selected={mode === id} key={id} className={mode === id ? styles.activeMode : ""} onClick={() => setMode(id)}><Icon />{label}</button>)}</div>
     <div className={styles.commandBar}><label><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ask the galaxy: Find emotional startup videos..." aria-label="Semantic galaxy search" /><kbd>{activeIds.size} FOUND</kbd></label><div className={styles.filters}><ListFilter />{trendFilters.map((filter) => <button key={filter} className={trendFilter === filter ? styles.activeFilter : ""} onClick={() => setTrendFilter(filter)}>{filter}</button>)}</div>{clusterFilter && <button className={styles.clearCluster} onClick={() => setClusterFilter(undefined)}>CLUSTER: {clusterFilter.toUpperCase()} <X /></button>}</div>
