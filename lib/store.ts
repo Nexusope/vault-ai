@@ -5,6 +5,13 @@ import { ideas as seedIdeas, type Idea } from "./data";
 
 export type StoredIdea = { id: string; title: string; creator: string; summary: string; source: string; sourceUrl?: string | null; thumbnailUrl?: string | null; hook?: string | null; tags: string; transcript?: string | null; mediaType?: string; trendScore?: number; confidence?: number; createdAt?: string };
 
+function parseStoredTags(value: string) {
+  try {
+    const parsed: unknown = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? [...new Set(parsed.filter((tag): tag is string => typeof tag === "string").map((tag) => tag.trim()).filter(Boolean))] : [];
+  } catch { return []; }
+}
+
 type VaultState = {
   selectedIds: string[];
   ideas: Idea[];
@@ -51,7 +58,7 @@ export const useVaultStore = create<VaultState>((set) => ({
       title: record.title,
       creator: record.creator || "unknown",
       category: record.source === "instagram" ? "Instagram" : "Captured",
-      tags: (() => { try { return JSON.parse(record.tags || "[]") as string[]; } catch { return []; } })(),
+      tags: parseStoredTags(record.tags),
       trend: record.trendScore && record.trendScore > 0 ? Math.round(record.trendScore) : 50,
       saved: "now",
       accent: ["#ff2d31", "#dce5ee", "#a70e17"][index % 3],

@@ -4,7 +4,7 @@
 import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Html, Line, OrbitControls, Sparkles } from "@react-three/drei";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AdditiveBlending, Color, Object3D, Vector3, type Group, type InstancedMesh, type Mesh } from "three";
 import {
   Atom, Boxes, BrainCircuit, CalendarRange, Check, ChevronRight, CircleDot,
@@ -167,6 +167,24 @@ function GalaxyCanvas({ graph, activeIds, selectedId, hoveredId, motionEnabled, 
   </div>;
 }
 
+class GalaxyCanvasBoundary extends Component<{ children: ReactNode; fallback: ReactNode; resetKey: string }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidUpdate(previous: Readonly<{ resetKey: string }>) {
+    if (this.state.failed && previous.resetKey !== this.props.resetKey) this.setState({ failed: false });
+  }
+  render() { return this.state.failed ? this.props.fallback : this.props.children; }
+}
+
+function GalaxyFallback({ graph, activeIds, selectedId, onSelect, onOpenNetwork, label }: { graph: GalaxyGraph; activeIds: Set<string>; selectedId?: string; onSelect: (id: string) => void; onOpenNetwork: () => void; label: string }) {
+  const visible = graph.nodes.filter((node) => activeIds.has(node.id)).sort((a, b) => b.importance - a.importance).slice(0, 16);
+  return <div className={styles.accessibleGalaxy} aria-label={label}>
+    <header><div><BrainCircuit /><span>ACCESSIBLE GRAPH VIEW</span><b>{visible.length} PRIORITY SIGNALS</b></div><button onClick={onOpenNetwork}><Network />OPEN 2D NETWORK</button></header>
+    <div className={styles.fallbackClusters}>{graph.clusters.slice(0, 8).map((cluster) => <span key={cluster.name}><i style={{ background: cluster.color }} />{cluster.name}<b>{cluster.count}</b></span>)}</div>
+    {visible.length ? <div className={styles.fallbackNodes}>{visible.map((node) => <button key={node.id} className={node.id === selectedId ? styles.activeCard : ""} onClick={() => onSelect(node.id)}><i style={{ background: node.accent }} /><div><small>{node.platform} / {node.emotionalTone}</small><b>{node.title}</b><span>{node.insight}</span></div><strong>{node.importance}</strong></button>)}</div> : <div className={styles.fallbackEmpty}><Search /><b>NO SIGNALS MATCH THIS LENS</b><span>Reset the search, cluster, or timeline filters to bring ideas back.</span></div>}
+  </div>;
+}
+
 function NetworkView({ graph, activeIds, selectedId, onSelect }: { graph: GalaxyGraph; activeIds: Set<string>; selectedId?: string; onSelect: (id: string) => void }) {
   const visible = graph.nodes.slice(0, 180);
   const point = (node: GalaxyNode) => ({ x: 50 + node.position[0] * 7.2, y: 50 + node.position[1] * 9 });
@@ -182,9 +200,10 @@ function NetworkView({ graph, activeIds, selectedId, onSelect }: { graph: Galaxy
 }
 
 function TimelineView({ nodes, activeIds, selectedId, onSelect, onDrag }: { nodes: GalaxyNode[]; activeIds: Set<string>; selectedId?: string; onSelect: (id: string) => void; onDrag: (event: React.DragEvent, id: string) => void }) {
+  const visible = nodes.filter((node) => activeIds.has(node.id));
   return <div className={styles.timeline} aria-label="Idea timeline">
     <div className={styles.timelineAxis}><span>NOW</span><i /><span>EARLIER</span></div>
-    {nodes.filter((node) => activeIds.has(node.id)).map((node, index) => <button draggable onDragStart={(event) => onDrag(event, node.id)} key={node.id} onClick={() => onSelect(node.id)} className={node.id === selectedId ? styles.activeCard : ""}><time>{node.saved.toUpperCase()} AGO</time><i style={{ background: node.accent }} /><div><small>{node.platform} / {node.topic}</small><b>{node.title}</b><span>{node.insight}</span></div><strong>{node.trend}</strong>{index < nodes.length - 1 && <em />}</button>)}
+    {visible.map((node, index) => <button draggable onDragStart={(event) => onDrag(event, node.id)} key={node.id} onClick={() => onSelect(node.id)} className={node.id === selectedId ? styles.activeCard : ""}><time>{savedWhen(node.saved)}</time><i style={{ background: node.accent }} /><div><small>{node.platform} / {node.topic}</small><b>{node.title}</b><span>{node.insight}</span></div><strong>{node.trend}</strong>{index < visible.length - 1 && <em />}</button>)}
   </div>;
 }
 
@@ -220,7 +239,7 @@ function FocusView({ graph, selected, onSelect }: { graph: GalaxyGraph; selected
   return <div className={styles.focusView}><div className={styles.focusCore} style={{ "--node": selected.accent } as React.CSSProperties}><i /><PlatformMark platform={selected.platform} /><BrainCircuit /><small>FOCUS SIGNAL</small><h2>{selected.title}</h2><p>{selected.insight}</p><strong>{selected.confidence}% AI CONFIDENCE</strong></div><div className={styles.focusRelations}>{related.map((edge) => { const node = graph.nodes[edge.source].id === selected.id ? graph.nodes[edge.target] : graph.nodes[edge.source]; return <button key={`${edge.source}-${edge.target}`} onClick={() => onSelect(node.id)}><i style={{ background: node.accent }} /><div><small>{edge.type} · {Math.round(edge.strength * 100)}% STRENGTH · {Math.round(edge.confidence * 100)}% CONFIDENCE</small><b>{node.title}</b><span>{edge.evidence}</span></div><ChevronRight /></button>; })}</div></div>;
 }
 
-function Inspector({ graph, node, selectedForFusion, onClose, onSelect, onToggleFusion }: { graph: GalaxyGraph; node?: GalaxyNode; selectedForFusion: boolean; onClose: () => void; onSelect: (id: string) => void; onToggleFusion: () => void }) {
+function Inspector({ graph, node, selectedForFusion, fusionAtCapacity, onClose, onSelect, onToggleFusion }: { graph: GalaxyGraph; node?: GalaxyNode; selectedForFusion: boolean; fusionAtCapacity: boolean; onClose: () => void; onSelect: (id: string) => void; onToggleFusion: () => void }) {
   if (!node) return <aside className={styles.inspector}><div className={styles.inspectorEmpty}><Atom /><b>SELECT A SIGNAL</b><p>Choose any node to inspect its intelligence and relationships.</p></div></aside>;
   const relatedEdges = graph.edges.filter((edge) => graph.nodes[edge.source].id === node.id || graph.nodes[edge.target].id === node.id).sort((a, b) => b.strength - a.strength).slice(0, 4);
   return <aside className={styles.inspector} aria-label={`Details for ${node.title}`}>
@@ -231,7 +250,7 @@ function Inspector({ graph, node, selectedForFusion, onClose, onSelect, onToggle
       <dl><dt>EMOTIONAL TONE</dt><dd>{node.emotionalTone}</dd><dt>HOOK ANALYSIS</dt><dd>{node.hookAnalysis}</dd><dt>AUDIENCE</dt><dd>{node.audience}</dd><dt>EDITING / STORY</dt><dd>{node.editingStyle} · {node.storytellingStyle}</dd>{node.transcript&&<><dt>TRANSCRIPT</dt><dd>{node.transcript.slice(0,260)}{node.transcript.length>260?'…':''}</dd></>}</dl>
       <div className={styles.keywordRow}>{node.favorite&&<span>♥ FAVORITE</span>}{node.collections.map((collection)=><span key={`collection-${collection}`}>COLLECTION / {collection}</span>)}{node.keywords.slice(0, 6).map((keyword) => <span key={keyword}>#{keyword}</span>)}</div>
       <section className={styles.related}><span>EXPLAINABLE PATHWAYS / {relatedEdges.length}</span>{relatedEdges.map((edge) => { const related = graph.nodes[edge.source].id === node.id ? graph.nodes[edge.target] : graph.nodes[edge.source]; return <button key={`${edge.source}-${edge.target}`} onClick={() => onSelect(related.id)}><i style={{ background: related.accent }} /><div><b>{related.title}</b><small>{edge.type} · {Math.round(edge.strength * 100)}% STRENGTH · {Math.round(edge.confidence * 100)}% CONF.</small><em>{edge.evidence}</em></div><ChevronRight /></button>; })}</section>
-      <button className={`${styles.fusionButton} ${selectedForFusion ? styles.selectedFusion : ""}`} onClick={onToggleFusion}>{selectedForFusion ? <Check /> : <Plus />}{selectedForFusion ? "ADDED TO FUSION" : "ADD TO FUSION"}</button>
+      <button className={`${styles.fusionButton} ${selectedForFusion ? styles.selectedFusion : ""}`} disabled={!selectedForFusion && fusionAtCapacity} onClick={onToggleFusion}>{selectedForFusion ? <Check /> : <Plus />}{selectedForFusion ? "ADDED TO FUSION" : fusionAtCapacity ? "FUSION DOCK FULL" : "ADD TO FUSION"}</button>
       {node.sourceUrl && <a className={styles.sourceButton} href={node.sourceUrl} target="_blank" rel="noopener noreferrer">OPEN ORIGINAL SOURCE <ExternalLink /></a>}
     </div>
   </aside>;
@@ -247,6 +266,7 @@ export function IdeaGalaxyWorkspace({ ideas }: { ideas: Idea[] }) {
   const [hoveredId, setHoveredId] = useState<string>();
   const [clusterFilter, setClusterFilter] = useState<string>();
   const [motionEnabled, setMotionEnabled] = useState(true);
+  const [preferFallback, setPreferFallback] = useState(false);
   const [cameraKey, setCameraKey] = useState(0);
   const selectedIds = useVaultStore((state) => state.selectedIds);
   const toggleSelected = useVaultStore((state) => state.toggleSelected);
@@ -259,7 +279,13 @@ export function IdeaGalaxyWorkspace({ ideas }: { ideas: Idea[] }) {
     worker.postMessage(ideas);
     return () => worker.terminate();
   }, [ideas]);
-  useEffect(() => { const media = window.matchMedia("(prefers-reduced-motion: reduce)"); const sync = () => setMotionEnabled(!media.matches); sync(); media.addEventListener("change", sync); return () => media.removeEventListener("change", sync); }, []);
+  useEffect(() => {
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const compactViewport = window.matchMedia("(max-width: 760px)");
+    const sync = () => { setMotionEnabled(!reducedMotion.matches); setPreferFallback(reducedMotion.matches || compactViewport.matches); };
+    sync(); reducedMotion.addEventListener("change", sync); compactViewport.addEventListener("change", sync);
+    return () => { reducedMotion.removeEventListener("change", sync); compactViewport.removeEventListener("change", sync); };
+  }, []);
   const activeIds = useMemo(() => new Set(graph.nodes.filter((node) => {
     const semantic = !query.trim() || semanticScore(node, query) >= 0.5;
     const time = node.savedOrder <= Math.ceil((timeline / 100) * Math.max(graph.nodes.length - 1, 0));
@@ -268,6 +294,7 @@ export function IdeaGalaxyWorkspace({ ideas }: { ideas: Idea[] }) {
     return semantic && time && cluster && trend;
   }).map((node) => node.id)), [clusterFilter, graph.nodes, query, timeline, trendFilter]);
   const activeNodes = useMemo(() => graph.nodes.filter((node) => activeIds.has(node.id)), [activeIds, graph.nodes]);
+  const selectedGraphIds = useMemo(() => selectedIds.filter((id) => graph.nodes.some((node) => node.id === id)), [graph.nodes, selectedIds]);
   const selected = graph.nodes.find((node) => node.id === selectedId);
   const hovered = graph.nodes.find((node) => node.id === hoveredId);
   const strongestCluster = [...graph.clusters].sort((a, b) => b.averageTrend - a.averageTrend)[0];
@@ -297,28 +324,35 @@ export function IdeaGalaxyWorkspace({ ideas }: { ideas: Idea[] }) {
 
   const select = (id: string) => { setSelectedId(id); setHoveredId(undefined); };
   const selectCluster = (cluster: string) => { setClusterFilter(cluster); setMode("GALAXY"); };
+  const enterMode = (nextMode: GalaxyMode) => {
+    if (nextMode === "FOCUS" && !selectedId) {
+      const priority = [...activeNodes].sort((a, b) => b.importance - a.importance)[0];
+      if (priority) setSelectedId(priority.id);
+    }
+    setMode(nextMode);
+  };
+  const resetFilters = () => { setQuery(""); setTrendFilter("ALL SIGNALS"); setClusterFilter(undefined); setTimeline(100); };
   const dragIdea = (event: React.DragEvent, id: string) => { event.dataTransfer.setData("text/idea-id", id); event.dataTransfer.effectAllowed = "copy"; };
   const dropFusion = (event: React.DragEvent) => { event.preventDefault(); const id = event.dataTransfer.getData("text/idea-id"); if (id && !selectedIds.includes(id)) toggleSelected(id); };
 
-  const content = mode === "GALAXY" ? <div className={styles.galaxyStage}>
-    <GalaxyCanvas key={cameraKey} graph={graph} activeIds={activeIds} selectedId={selectedId} hoveredId={hoveredId} motionEnabled={motionEnabled} onSelect={select} onHover={setHoveredId} />
+  const content = !graph.nodes.length ? <div className={styles.graphEmpty}><Atom /><b>YOUR GALAXY IS READY FOR ITS FIRST SIGNAL</b><p>Save an idea in the Library and it will appear here with explainable relationships.</p><Link href="/library">OPEN IDEA LIBRARY <ChevronRight /></Link></div> : activeIds.size === 0 ? <div className={styles.noResults}><Search/><b>NO SIGNALS MATCH THIS LENS</b><p>Your ideas are safe. Reset the active search, cluster, trend, and timeline filters to see the full graph again.</p><button onClick={resetFilters}>RESET FILTERS</button></div> : mode === "GALAXY" ? <div className={styles.galaxyStage}>
+    {preferFallback ? <GalaxyFallback graph={graph} activeIds={activeIds} selectedId={selectedId} onSelect={select} onOpenNetwork={() => enterMode("NETWORK")} label="Mobile or reduced-motion Galaxy fallback" /> : <GalaxyCanvasBoundary resetKey={`${graph.nodes.length}:${cameraKey}`} fallback={<GalaxyFallback graph={graph} activeIds={activeIds} selectedId={selectedId} onSelect={select} onOpenNetwork={() => enterMode("NETWORK")} label="Galaxy canvas recovery view" />}><GalaxyCanvas key={cameraKey} graph={graph} activeIds={activeIds} selectedId={selectedId} hoveredId={hoveredId} motionEnabled={motionEnabled} onSelect={select} onHover={setHoveredId} /></GalaxyCanvasBoundary>}
     <div className={styles.liveHud}><span><i /> LIVE GRAPH / EVIDENCE ON</span><b>{activeIds.size.toLocaleString()} / {graph.nodes.length.toLocaleString()} ACTIVE</b><small>{graph.edges.length.toLocaleString()} EXPLAINABLE RELATIONSHIPS</small></div>
-    <div className={styles.graphTools} aria-label="Galaxy camera controls"><button onClick={() => { setCameraKey((value) => value + 1); setSelectedId(undefined); }}><CircleDot/>RESET VIEW <kbd>R</kbd></button><button aria-pressed={motionEnabled} onClick={() => setMotionEnabled((value) => !value)}><Orbit/>{motionEnabled ? "PAUSE ORBIT" : "AUTO ORBIT"}</button><button onClick={() => setMode("NETWORK")}><Network/>2D MAP</button></div>
+    {!preferFallback && <div className={styles.graphTools} aria-label="Galaxy camera controls"><button onClick={() => { setCameraKey((value) => value + 1); setSelectedId(undefined); }}><CircleDot/>RESET VIEW <kbd>R</kbd></button><button aria-pressed={motionEnabled} onClick={() => setMotionEnabled((value) => !value)}><Orbit/>{motionEnabled ? "PAUSE ORBIT" : "AUTO ORBIT"}</button><button onClick={() => enterMode("NETWORK")}><Network/>2D MAP</button></div>}
     <div className={styles.clusterRail} aria-label="Galaxy clusters">{graph.clusters.slice(0, 7).map((cluster) => <button key={cluster.name} aria-pressed={clusterFilter === cluster.name} onClick={() => setClusterFilter(clusterFilter === cluster.name ? undefined : cluster.name)}><i style={{ background: cluster.color }}/><span>{cluster.name}</span><b>{cluster.count}</b></button>)}</div>
     <div className={styles.relationshipLegend}><span>RELATIONSHIP MIX</span>{relationshipMix.map(([type, count], index) => <div key={type}><i className={index === 0 ? styles.strongLine : index === 1 ? styles.mediumLine : styles.softLine}/><b>{type}</b><small>{count}</small></div>)}</div>
     <div className={styles.controlHud}><small>DRAG TO ORBIT · SCROLL TO ZOOM</small><small>ARROWS BROWSE · F FOCUSES · ESC CLEARS</small></div>
     {strongestCluster && <button className={styles.opportunityBeacon} onClick={() => { const node = graph.nodes.find((item) => item.topic === strongestCluster.name); if (node) select(node.id); setMode("OPPORTUNITY"); }}><SparklesIcon /><span>OPPORTUNITY DETECTED</span><b>{strongestCluster.name} is accelerating</b></button>}
     {hovered && <div className={styles.hoverCard}><PlatformMark platform={hovered.platform} /><div><small>{hovered.creator} · SAVED {hovered.saved.toUpperCase()} AGO · {hovered.emotionalTone}</small><b>{hovered.title}</b><p>{hovered.insight}</p><em>{hovered.hookAnalysis}</em><span>↑{hovered.trend} TREND · {graph.edges.filter((edge) => graph.nodes[edge.source].id === hovered.id || graph.nodes[edge.target].id === hovered.id).length} RELATED</span></div></div>}
-    {activeIds.size === 0 && <div className={styles.noResults}><Search/><b>NO SIGNALS MATCH THIS LENS</b><button onClick={() => { setQuery(""); setTrendFilter("ALL SIGNALS"); setClusterFilter(undefined); setTimeline(100); }}>RESET FILTERS</button></div>}
   </div> : mode === "NETWORK" ? <NetworkView graph={graph} activeIds={activeIds} selectedId={selectedId} onSelect={select} /> : mode === "TIMELINE" ? <TimelineView nodes={graph.nodes} activeIds={activeIds} selectedId={selectedId} onSelect={select} onDrag={dragIdea} /> : mode === "KANBAN" ? <KanbanView graph={graph} activeIds={activeIds} selectedId={selectedId} onSelect={select} onDrag={dragIdea} /> : mode === "LIBRARY" ? <LibraryGalaxyView nodes={graph.nodes} activeIds={activeIds} selectedId={selectedId} onSelect={select} onDrag={dragIdea} /> : mode === "HEATMAP" ? <HeatmapView graph={graph} onSelectCluster={selectCluster} /> : mode === "OPPORTUNITY" ? <OpportunityView graph={graph} onFocus={(id) => { select(id); setMode("FOCUS"); }} /> : <FocusView graph={graph} selected={selected} onSelect={select} />;
 
   return <section className={styles.workspace}>
     <header className={styles.hero}><div><span><i /> LIVING KNOWLEDGE UNIVERSE / INDEX ONLINE</span><h1>IDEA / <em>GALAXY</em></h1><p>Navigate your creative memory as an explainable universe. Every pathway shows why two ideas belong together—and where the next opportunity is forming.</p></div><div className={styles.heroMetrics}><div><b>{graph.nodes.length.toLocaleString()}</b><span>INTELLIGENT NODES</span></div><div><b>{graph.edges.length.toLocaleString()}</b><span>RELATIONSHIPS</span></div><div><b>{graph.clusters.length}</b><span>LIVE CLUSTERS</span></div><div><b>{density}</b><span>LINKS / NODE</span></div></div></header>
-    <div className={styles.discovery}><BrainCircuit /><div><small>AI DISCOVERY / NOW</small><p>{overlapA && overlapB ? <><b>{overlapA.topic}</b> and <b>{overlapB.topic}</b> frequently overlap through {overlapEdge.type.toLowerCase()}. Suggested direction: <strong>{overlapA.topic} for {overlapB.audience}</strong>.</> : <>Your graph is learning from every saved signal.</>}</p></div><button onClick={() => setMode("OPPORTUNITY")}>EXPLORE INSIGHT <ChevronRight /></button></div>
-    <div className={styles.modeBar} role="tablist" aria-label="Galaxy view modes">{modes.map(({ id, label, icon: Icon }) => <button role="tab" aria-selected={mode === id} key={id} className={mode === id ? styles.activeMode : ""} onClick={() => setMode(id)}><Icon />{label}</button>)}</div>
+    <div className={styles.discovery}><BrainCircuit /><div><small>AI DISCOVERY / NOW</small><p>{overlapA && overlapB ? <><b>{overlapA.topic}</b> and <b>{overlapB.topic}</b> frequently overlap through {overlapEdge.type.toLowerCase()}. Suggested direction: <strong>{overlapA.topic} for {overlapB.audience}</strong>.</> : <>Your graph is learning from every saved signal.</>}</p></div><button onClick={() => enterMode("OPPORTUNITY")}>EXPLORE INSIGHT <ChevronRight /></button></div>
+    <div className={styles.modeBar} role="tablist" aria-label="Galaxy view modes">{modes.map(({ id, label, icon: Icon }) => <button role="tab" aria-selected={mode === id} tabIndex={mode === id ? 0 : -1} key={id} className={mode === id ? styles.activeMode : ""} onClick={() => enterMode(id)}><Icon />{label}</button>)}</div>
     <div className={styles.commandBar}><label><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ask the galaxy: Find emotional startup videos..." aria-label="Semantic galaxy search" /><kbd>{activeIds.size} FOUND</kbd></label><div className={styles.filters}><ListFilter />{trendFilters.map((filter) => <button key={filter} className={trendFilter === filter ? styles.activeFilter : ""} onClick={() => setTrendFilter(filter)}>{filter}</button>)}</div>{clusterFilter && <button className={styles.clearCluster} onClick={() => setClusterFilter(undefined)}>CLUSTER: {clusterFilter.toUpperCase()} <X /></button>}</div>
     <div className={styles.timelineControl}><Clock3 /><span>KNOWLEDGE EVOLUTION</span><input type="range" min="1" max="100" value={timeline} onChange={(event) => setTimeline(Number(event.target.value))} aria-label="Knowledge evolution timeline" /><b>{timeline === 100 ? "NOW" : `${timeline}% OF HISTORY`}</b></div>
-    <div className={styles.mainGrid}><div className={styles.viewSurface}>{content}</div><Inspector graph={graph} node={selected} selectedForFusion={selected ? selectedIds.includes(selected.id) : false} onClose={() => setSelectedId(undefined)} onSelect={select} onToggleFusion={() => selected && toggleSelected(selected.id)} /></div>
-    <div className={`${styles.fusionDock} ${selectedIds.length >= 2 ? styles.ready : ""}`} onDragOver={(event) => event.preventDefault()} onDrop={dropFusion}><div><Boxes /><span>FUSION DOCK</span><b>{selectedIds.length} / 5 SIGNALS</b></div><p>{selectedIds.length ? selectedIds.map((id) => graph.nodes.find((node) => node.id === id)?.title).filter(Boolean).join(" + ") : "Drag ideas here or add them from the inspector."}</p><Link href="/fusion" aria-disabled={selectedIds.length < 2}>FUSE SELECTED <Flame /></Link></div>
+    <div className={styles.mainGrid}><div className={styles.viewSurface}>{content}</div><Inspector graph={graph} node={selected} selectedForFusion={selected ? selectedIds.includes(selected.id) : false} fusionAtCapacity={selectedGraphIds.length >= 5} onClose={() => setSelectedId(undefined)} onSelect={select} onToggleFusion={() => selected && toggleSelected(selected.id)} /></div>
+    <div className={`${styles.fusionDock} ${selectedGraphIds.length >= 2 ? styles.ready : ""}`} onDragOver={(event) => event.preventDefault()} onDrop={dropFusion}><div><Boxes /><span>FUSION DOCK</span><b>{selectedGraphIds.length} / 5 SIGNALS</b></div><p>{selectedGraphIds.length ? selectedGraphIds.map((id) => graph.nodes.find((node) => node.id === id)?.title).filter(Boolean).join(" + ") : "Drag ideas here or add them from the inspector."}</p><Link href="/fusion" aria-disabled={selectedGraphIds.length < 2} tabIndex={selectedGraphIds.length >= 2 ? 0 : -1} onClick={(event) => { if (selectedGraphIds.length < 2) event.preventDefault(); }}>FUSE SELECTED <Flame /></Link></div>
   </section>;
 }

@@ -32,30 +32,71 @@ const edits = ["Single take", "Fast-cut montage", "Text-led", "Tactile macro", "
 const audiences = ["Startup founders", "Independent creators", "Design leaders", "Growth teams", "Curious builders", "Creative strategists"];
 const categoryColors = ["#ff2d31", "#dce5ee", "#a70e17", "#ff6a2b", "#9ba2ab", "#ff7477", "#c3cad2", "#7c838d"];
 
-function hash(input: string) {
+function text(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function stringList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean))];
+}
+
+function boundedNumber(value: unknown, fallback: number, minimum = 0, maximum = 100) {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? Math.max(minimum, Math.min(maximum, number)) : fallback;
+}
+
+function normalizeIdea(idea: Idea, index: number): Idea {
+  const source = (idea || {}) as Partial<Idea>;
+  return {
+    ...source,
+    id: text(source.id, `idea-${index + 1}`),
+    title: text(source.title, "Untitled signal"),
+    creator: text(source.creator, "unknown"),
+    category: text(source.category, "Captured"),
+    tags: stringList(source.tags),
+    trend: Math.round(boundedNumber(source.trend, 50)),
+    saved: text(source.saved, "now"),
+    accent: text(source.accent, categoryColors[index % categoryColors.length]),
+    insight: text(source.insight, "Captured signal awaiting enrichment."),
+  };
+}
+
+function hash(input: unknown) {
+  const normalized = String(input ?? "");
   let value = 2166136261;
-  for (let index = 0; index < input.length; index += 1) value = Math.imul(value ^ input.charCodeAt(index), 16777619);
+  for (let index = 0; index < normalized.length; index += 1) value = Math.imul(value ^ normalized.charCodeAt(index), 16777619);
   return value >>> 0;
 }
 
 function platformFor(idea: Idea) {
-  const url = idea.sourceUrl?.toLowerCase() || "";
+  const explicit = text(idea.platform, "");
+  const url = text(idea.sourceUrl, "").toLowerCase();
   if (url.includes("instagram")) return "Instagram";
   if (url.includes("tiktok")) return "TikTok";
   if (url.includes("youtube") || url.includes("youtu.be")) return "YouTube";
   if (url.includes("x.com") || url.includes("twitter")) return "X";
   if (url.includes("reddit")) return "Reddit";
+  if (explicit) return explicit;
   if (url) return "Web";
   return idea.category === "Captured" ? "Note" : idea.category;
 }
 
-function tokens(value: string) {
-  return [...new Set(value.toLowerCase().replace(/[^a-z0-9@]+/g, " ").split(" ").filter((token) => token.length > 2))];
+function tokens(value: unknown) {
+  return [...new Set(String(value ?? "").toLowerCase().replace(/[^a-z0-9@]+/g, " ").split(" ").filter((token) => token.length > 2))];
 }
 
 export function enrichIdeas(ideas: Idea[]): GalaxyNode[] {
+  const seenIds = new Set<string>();
+  const normalizedIdeas = (Array.isArray(ideas) ? ideas : []).map((idea, index) => {
+    const normalized = normalizeIdea(idea, index);
+    if (!seenIds.has(normalized.id)) { seenIds.add(normalized.id); return normalized; }
+    const id = `${normalized.id}-${index + 1}`;
+    seenIds.add(id);
+    return { ...normalized, id };
+  });
   const groups = new Map<string, Idea[]>();
-  ideas.forEach((idea) => groups.set(idea.category, [...(groups.get(idea.category) || []), idea]));
+  normalizedIdeas.forEach((idea) => groups.set(idea.category, [...(groups.get(idea.category) || []), idea]));
   const categories = [...groups.keys()];
   const centers = new Map(categories.map((category, index) => {
     const angle = (index / Math.max(categories.length, 1)) * Math.PI * 2;
@@ -64,7 +105,7 @@ export function enrichIdeas(ideas: Idea[]): GalaxyNode[] {
   }));
   const categoryOffsets = new Map<string, number>();
 
-  return ideas.map((idea, index) => {
+  return normalizedIdeas.map((idea, index) => {
     const seed = hash(idea.id + idea.title);
     const within = categoryOffsets.get(idea.category) || 0;
     categoryOffsets.set(idea.category, within + 1);
@@ -74,11 +115,15 @@ export function enrichIdeas(ideas: Idea[]): GalaxyNode[] {
     const position: [number, number, number] = [
       center[0] + Math.cos(angle) * radius,
       center[1] + Math.sin(angle) * radius * 0.72,
-      center[2] + (((seed >> 5) % 100) / 100 - 0.5) * 1.4,
+      center[2] + (((seed >>> 5) % 100) / 100 - 0.5) * 1.4,
     ];
     const keywords = [...new Set([...idea.tags, ...tokens(`${idea.title} ${idea.insight}`)].slice(0, 9))];
-    const confidence = idea.confidence && idea.confidence > 0 ? Math.round(idea.confidence) : 66 + (seed % 33);
+    const confidence = idea.confidence && idea.confidence > 0 ? Math.round(boundedNumber(idea.confidence, 72)) : 66 + (seed % 33);
     const virality = Math.min(99, Math.round(idea.trend * 0.76 + (seed % 24)));
+    const emotionalTone = tones[seed % tones.length] || tones[0];
+    const storytellingStyle = stories[(seed >>> 3) % stories.length] || stories[0];
+    const editingStyle = edits[(seed >>> 6) % edits.length] || edits[0];
+    const audience = audiences[(seed >>> 9) % audiences.length] || audiences[0];
     return {
       ...idea,
       accent: idea.accent || categoryColors[categories.indexOf(idea.category) % categoryColors.length],
@@ -86,11 +131,11 @@ export function enrichIdeas(ideas: Idea[]): GalaxyNode[] {
       topic: idea.category,
       niche: idea.tags[0] || idea.category,
       keywords,
-      emotionalTone: tones[seed % tones.length],
-      storytellingStyle: stories[(seed >> 3) % stories.length],
-      editingStyle: edits[(seed >> 6) % edits.length],
-      hookAnalysis: `${stories[(seed >> 3) % stories.length]} opening with a ${tones[seed % tones.length].toLowerCase()} tension pattern.`,
-      audience: audiences[(seed >> 9) % audiences.length],
+      emotionalTone,
+      storytellingStyle,
+      editingStyle,
+      hookAnalysis: `${storytellingStyle} opening with a ${emotionalTone.toLowerCase()} tension pattern.`,
+      audience,
       confidence,
       virality,
       importance: Math.round((idea.trend + confidence + virality) / 3),
@@ -110,22 +155,28 @@ function cosineSimilarity(a: number[], b: number[]) {
 }
 
 function relationship(a: GalaxyNode, b: GalaxyNode): { strength: number; confidence: number; type: RelationshipKind; evidence: string } {
-  const shared = a.keywords.filter((keyword) => b.keywords.includes(keyword));
+  const aKeywords = stringList(a.keywords);
+  const bKeywords = stringList(b.keywords);
+  const aStory = text(a.storytellingStyle, "");
+  const bStory = text(b.storytellingStyle, "");
+  const aEdit = text(a.editingStyle, "");
+  const bEdit = text(b.editingStyle, "");
+  const shared = aKeywords.filter((keyword) => bKeywords.includes(keyword));
   const sharedKeywords = shared.length;
-  const sameCreator = a.creator !== "unknown" && a.creator === b.creator;
+  const sameCreator = text(a.creator, "unknown") !== "unknown" && a.creator === b.creator;
   const sameTopic = a.topic === b.topic;
   const sameAudience = a.audience === b.audience;
-  const sameHook = a.storytellingStyle === b.storytellingStyle;
-  const sameEdit = a.editingStyle === b.editingStyle;
-  const similarAudio = (a.topic === "Audio" || a.keywords.includes("audio")) && (b.topic === "Audio" || b.keywords.includes("audio"));
-  const trendAffinity = 1 - Math.min(1, Math.abs(a.trend - b.trend) / 40);
+  const sameHook = Boolean(aStory && aStory === bStory);
+  const sameEdit = Boolean(aEdit && aEdit === bEdit);
+  const similarAudio = (a.topic === "Audio" || aKeywords.includes("audio")) && (b.topic === "Audio" || bKeywords.includes("audio"));
+  const trendAffinity = 1 - Math.min(1, Math.abs(boundedNumber(a.trend, 50) - boundedNumber(b.trend, 50)) / 40);
   const adjacent = Math.abs(a.savedOrder - b.savedOrder) === 1;
   const semanticSimilarity = cosineSimilarity(a.embeddingVector, b.embeddingVector);
   let strength = sharedKeywords * 0.16 + (sameTopic ? 0.32 : 0) + (sameAudience ? 0.13 : 0) + (sameHook ? 0.12 : 0) + (sameEdit ? 0.09 : 0) + trendAffinity * 0.09 + semanticSimilarity * 0.18 + (adjacent ? 0.16 : 0);
   if (sameCreator) strength = Math.max(strength, 0.94);
   strength = Math.min(0.99, strength);
   const type: RelationshipKind = sameCreator ? "Shared Creator" : sharedKeywords > 1 || semanticSimilarity > 0.77 ? "High Semantic Similarity" : similarAudio ? "Similar Audio" : sameTopic && a.emotionalTone === "Contrarian" && b.emotionalTone !== "Contrarian" ? "Contradicts" : sameTopic ? "Similar Topic" : sameAudience ? "Similar Audience" : sameHook ? "Similar Hook" : sameEdit ? "Similar Editing Style" : adjacent ? "Frequently Viewed Together" : trendAffinity > 0.85 ? "Trending Together" : a.savedOrder > b.savedOrder ? "Inspired By" : "Complements";
-  const evidence = sameCreator ? `Both saved from ${a.creator}` : shared.length ? `Shared signals: ${shared.slice(0, 3).join(", ")}` : sameTopic ? `Both belong to ${a.topic}` : sameAudience ? `Both target ${a.audience}` : sameHook ? `Both use a ${a.storytellingStyle.toLowerCase()} structure` : sameEdit ? `Both use ${a.editingStyle.toLowerCase()} editing` : adjacent ? "Captured next to each other in your save history" : `Trend patterns move with ${Math.round(trendAffinity * 100)}% affinity`;
+  const evidence = sameCreator ? `Both saved from ${a.creator}` : shared.length ? `Shared signals: ${shared.slice(0, 3).join(", ")}` : sameTopic ? `Both belong to ${a.topic}` : sameAudience ? `Both target ${a.audience}` : sameHook ? `Both use a ${aStory.toLowerCase()} structure` : sameEdit ? `Both use ${aEdit.toLowerCase()} editing` : adjacent ? "Captured next to each other in your save history" : `Trend patterns move with ${Math.round(trendAffinity * 100)}% affinity`;
   const confidence = Math.min(0.99, 0.68 + strength * 0.27 + (sharedKeywords ? 0.03 : 0));
   return { strength, confidence, type, evidence };
 }
@@ -183,7 +234,7 @@ export function semanticScore(node: GalaxyNode, query: string) {
   const queryTokens = tokens(query);
   if (!queryTokens.length) return 1;
   const expanded = queryTokens.flatMap((token) => [token, ...(semanticAliases[token] || [])]);
-  const corpus = `${node.title} ${node.creator} ${node.topic} ${node.niche} ${node.keywords.join(" ")} ${node.insight} ${node.emotionalTone} ${node.storytellingStyle} ${node.editingStyle} ${node.audience}`.toLowerCase();
+  const corpus = [node.title, node.creator, node.topic, node.niche, stringList(node.keywords).join(" "), node.insight, node.emotionalTone, node.storytellingStyle, node.editingStyle, node.audience].map((value) => text(value, "")).join(" ").toLowerCase();
   const matches = expanded.filter((token) => corpus.includes(token)).length;
   return matches / Math.max(queryTokens.length, 1);
 }

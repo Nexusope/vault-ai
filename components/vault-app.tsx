@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import {
   Activity, Archive, Atom, Bell, Blocks, Bot, Check, ChevronRight, CircleGauge,
@@ -12,12 +13,15 @@ import {
   Sparkles, TrendingUp, WandSparkles, X, Zap,
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { IdeaGalaxyWorkspace } from "./galaxy";
 import { KeepOrCleanView } from "./keep-or-clean";
 import { activity, type Idea } from "../lib/data";
 import { galaxyContextForAI } from "../lib/galaxy";
 import { useVaultStore, type StoredIdea } from "../lib/store";
 import type { ViewName } from "../lib/views";
+
+const IdeaGalaxyWorkspace = dynamic(() => import("./galaxy").then((module) => module.IdeaGalaxyWorkspace), {
+  loading: () => <section className="galaxy-loading" aria-label="Loading Idea Galaxy"><Atom /><span>ASSEMBLING KNOWLEDGE UNIVERSE</span><i /></section>,
+});
 
 const nav: { name: ViewName; label: string; icon: typeof LayoutDashboard; hotkey: string }[] = [
   { name: "dashboard", label: "Control room", icon: LayoutDashboard, hotkey: "1" },
